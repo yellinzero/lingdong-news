@@ -23,6 +23,7 @@ __pycache__/
 !.env.example
 *.local
 apikey
+credentials.json
 /secrets/
 *.pem
 *.key

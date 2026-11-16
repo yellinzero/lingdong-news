@@ -2,6 +2,7 @@ mod adapters;
 mod ai;
 mod ai_control;
 mod branding;
+mod credentials;
 mod geometry;
 mod live_check;
 #[cfg(target_os = "macos")]
@@ -48,7 +49,7 @@ fn sync_tray_ai(app: &tauri::AppHandle) {
 struct Backend {
     disk: Mutex<DiskState>,
     ai_gate: ai_control::Gate,
-    key: Mutex<Option<(String, String)>>,
+    credentials: credentials::Store,
     writable: bool,
     warning: Option<String>,
     path: PathBuf,
@@ -194,22 +195,7 @@ fn ai_usage(backend: tauri::State<Backend>) -> Result<ai_control::Usage, String>
 }
 
 fn stored_key(config: &AiConfig, backend: &Backend) -> Result<Option<String>, String> {
-    let account = network::account(config)?;
-    let mut cache = backend.key.lock().unwrap();
-    if let Some((host, key)) = &*cache {
-        if host == &account {
-            return Ok((!key.is_empty()).then(|| key.clone()));
-        }
-    }
-    let entry =
-        keyring::Entry::new("local.newsfloat.ai", &account).map_err(|_| "系统凭据服务不可用")?;
-    let key = match entry.get_password() {
-        Ok(key) => key,
-        Err(keyring::Error::NoEntry) => String::new(),
-        Err(_) => return Err("系统凭据库不可用或未授权；当前按关键词或原始流展示".into()),
-    };
-    *cache = Some((account, key.clone()));
-    Ok((!key.is_empty()).then_some(key))
+    backend.credentials.get("ai", &network::account(config)?)
 }
 #[tauri::command]
 async fn key_status(app: tauri::AppHandle, config: AiConfig) -> Result<bool, String> {
@@ -220,31 +206,17 @@ async fn key_status(app: tauri::AppHandle, config: AiConfig) -> Result<bool, Str
         stored_key(&config, &app.state::<Backend>()).map(|k| k.is_some())
     })
     .await
-    .map_err(|_| "无法查询系统凭据库".to_string())?
+    .map_err(|_| "无法读取本地 Key 文件".to_string())?
 }
 #[tauri::command]
 async fn save_key(app: tauri::AppHandle, config: AiConfig, key: String) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
-        let account = network::account(&config)?;
-        let entry = keyring::Entry::new("local.newsfloat.ai", &account)
-            .map_err(|_| "系统凭据服务不可用")?;
-        let key = key.trim().to_string();
-        let result = if key.is_empty() {
-            match entry.delete_credential() {
-                Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
-                Err(e) => Err(e),
-            }
-        } else {
-            entry.set_password(&key)
-        };
-        result.map_err(|_| {
-            "无法保存 Key 到系统凭据库；请检查钥匙串／凭据管理器／Secret Service".to_string()
-        })?;
-        *app.state::<Backend>().key.lock().unwrap() = Some((account, key));
-        Ok(())
+        app.state::<Backend>()
+            .credentials
+            .set("ai", &network::account(&config)?, &key)
     })
     .await
-    .map_err(|_| "无法保存凭据".to_string())?
+    .map_err(|_| "无法保存本地 Key".to_string())?
 }
 
 async fn fetch_all(app: &tauri::AppHandle) -> Vec<network::FeedResult> {
@@ -270,10 +242,11 @@ async fn fetch_all(app: &tauri::AppHandle) -> Vec<network::FeedResult> {
             .find(|s| s.id == source)
             .cloned();
         let semaphore = semaphore.clone();
+        let app = app.clone();
         tasks.spawn(async move {
             let _permit = semaphore.acquire_owned().await.expect("source semaphore");
             let result = if let Some(custom) = custom {
-                let key = read_source_key(&custom).await;
+                let key = read_source_key(&app, &custom).await;
                 match key {
                     Ok(key) => network::fetch_custom(&client, &custom, key.as_deref()).await,
                     Err(error) => network::FeedResult {
@@ -541,43 +514,36 @@ async fn judge_batch(
     budgeted_judgement(app, prefs.ai, prefs.interests, inputs, None, true).await
 }
 
-async fn read_source_key(source: &CustomSource) -> Result<Option<String>, String> {
+async fn read_source_key(
+    app: &tauri::AppHandle,
+    source: &CustomSource,
+) -> Result<Option<String>, String> {
     if source.auth == "none" {
         return Ok(None);
     }
     let source = source.clone();
+    let app = app.clone();
     tauri::async_runtime::spawn_blocking(move || {
-        let account = network::source_account(&source)?;
-        let entry = keyring::Entry::new("local.newsfloat.sources", &account)
-            .map_err(|_| "系统凭据服务不可用")?;
-        match entry.get_password() {
-            Ok(key) => Ok(Some(key)),
-            Err(keyring::Error::NoEntry) => Ok(None),
-            Err(_) => Err("无法读取来源凭据".into()),
-        }
+        app.state::<Backend>()
+            .credentials
+            .get("source", &network::source_account(&source)?)
     })
     .await
-    .map_err(|_| "无法读取来源凭据".to_string())?
+    .map_err(|_| "无法读取来源 Key".to_string())?
 }
 #[tauri::command]
-async fn save_source_key(source: CustomSource, key: String) -> Result<(), String> {
+async fn save_source_key(
+    app: tauri::AppHandle,
+    source: CustomSource,
+    key: String,
+) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
-        let account = network::source_account(&source)?;
-        let entry = keyring::Entry::new("local.newsfloat.sources", &account)
-            .map_err(|_| "系统凭据服务不可用")?;
-        let key = key.trim();
-        let result = if key.is_empty() {
-            match entry.delete_credential() {
-                Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
-                Err(e) => Err(e),
-            }
-        } else {
-            entry.set_password(key)
-        };
-        result.map_err(|_| "无法保存来源 Key 到系统凭据库".into())
+        app.state::<Backend>()
+            .credentials
+            .set("source", &network::source_account(&source)?, &key)
     })
     .await
-    .map_err(|_| "无法保存来源凭据".to_string())?
+    .map_err(|_| "无法保存来源 Key".to_string())?
 }
 #[tauri::command]
 fn export_subscriptions(app: tauri::AppHandle, content: String) -> Result<String, String> {
@@ -618,7 +584,7 @@ async fn test_source(
     network::custom_endpoint(&source)?;
     let key = match key {
         Some(key) => Some(key),
-        None => read_source_key(&source).await?,
+        None => read_source_key(&app, &source).await?,
     };
     Ok(network::fetch_custom(&app.state::<Backend>().client, &source, key.as_deref()).await)
 }
@@ -1051,7 +1017,7 @@ pub fn run() {
             app.manage(Backend {
                 ai_gate,
                 disk: Mutex::new(disk),
-                key: Mutex::new(None),
+                credentials: credentials::Store::new(path.with_file_name("credentials.json")),
                 writable,
                 warning,
                 path,

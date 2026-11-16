@@ -836,7 +836,7 @@ function renderSettings(panel: HTMLElement) {
         }
         let secret:HTMLInputElement|undefined;
         if(manifest.auth){
-          secret=field(editor,'来源 Key（系统凭据库）',sourceKeyEdits.get(id)??'',value=>{retain();sourceKeyEdits.set(id,value);}) as HTMLInputElement;secret.type='password';secret.autocomplete='new-password';secret.placeholder='留空保持已保存的 Key';
+          secret=field(editor,'来源 Key',sourceKeyEdits.get(id)??'',value=>{retain();sourceKeyEdits.set(id,value);}) as HTMLInputElement;secret.type='password';secret.autocomplete='new-password';secret.placeholder='留空保持已保存的 Key';
           editor.append(button('删除来源已存 Key',()=>{retain();sourceKeyEdits.set(id,'');secret!.value='';secret!.placeholder='保存设置后删除 Key';},'text-action'));
         }
         const status=el('p','hint connection-test-result');status.setAttribute('role','status');
@@ -853,7 +853,7 @@ function renderSettings(panel: HTMLElement) {
       const rulesField=field(editor,'本地适配器规则',source.adapter?JSON.stringify(source.adapter,null,2):'',value=>{try{const rules=JSON.parse(value);const error=validateAdapter(rules);if(error){adapterErrors.set(source.id,error);}else{source.adapter=rules;adapterErrors.delete(source.id);}}catch{adapterErrors.set(source.id,'适配器规则不是合法 JSON');}},true);rulesField.closest('label')!.hidden=source.format!=='adapter';
       field(editor,'来源分组',source.folder??'',value=>{source.folder=value;});
       select(editor,'来源鉴权',[['none','无需鉴权'],['bearer','Bearer Key']],source.auth,value=>{source.auth=value as 'none'|'bearer';secret.disabled=value!=='bearer';});
-      const secret=field(editor,'来源 Key（系统凭据库）',sourceKeyEdits.get(source.id)??'',value=>{sourceKeyEdits.set(source.id,value);}) as HTMLInputElement;
+      const secret=field(editor,'来源 Key',sourceKeyEdits.get(source.id)??'',value=>{sourceKeyEdits.set(source.id,value);}) as HTMLInputElement;
       secret.type='password';secret.autocomplete='new-password';secret.disabled=source.auth!=='bearer';secret.placeholder=sourceKeyEdits.get(source.id)===''?'保存设置后删除 Key':'留空保持此来源已存 Key';
       const status=el('p','hint connection-test-result');status.setAttribute('role','status');
       const test=button('测试来源',()=>{void runTest();},'text-action');
@@ -930,11 +930,12 @@ function renderSettings(panel: HTMLElement) {
   const endpointField = field(ai, '服务地址（完整 API URL）', prefs.ai.apiUrl, v => { prefs.ai.apiUrl = v; keyChangedHost(); });
   field(ai, '模型名称', prefs.ai.model, v => { prefs.ai.model = v; });
   let newKey: string | undefined, keyHost = prefs.ai.apiUrl;
-  const keyField = field(ai, 'API Key（仅保存在系统凭据库）', '', v => { newKey = v; }) as HTMLInputElement;
-  keyField.type = 'password'; keyField.autocomplete = 'new-password'; keyField.placeholder = hasKey ? '已保存 · 留空保持原 Key' : '未配置 · 留空跳过 AI';
+  const keyField = field(ai, 'API Key', '', v => { newKey = v; }) as HTMLInputElement;
+  ai.append(el('p','hint','Key 以明文保存在本机，不随配置导出。'));
+  keyField.type = 'password'; keyField.autocomplete = 'new-password'; keyField.placeholder = hasKey ? '已保存 · 留空保持原 Key' : '留空保留已保存的 Key';
   function keyChangedHost() {
     if (!keyField) return;
-    if (keyHost !== endpointField.value) { keyField.value = ''; newKey = undefined; keyField.placeholder = '新地址 · 填写此服务的 Key，留空尝试系统凭据'; keyHost = endpointField.value; }
+    if (keyHost !== endpointField.value) { keyField.value = ''; newKey = undefined; keyField.placeholder = '新地址 · 填写此服务的 Key，留空使用已保存的 Key'; keyHost = endpointField.value; }
   }
   ai.append(button('删除此地址已保存的 Key', () => { newKey = ''; keyField.value = ''; keyField.placeholder = '保存设置后删除 Key'; }, 'quit-button'));
   field(ai, '我关注什么', prefs.interests, v => { prefs.interests = v; }, true);
@@ -1047,7 +1048,7 @@ async function start() {
   try { const loaded = await bridge.load(); state = loaded.state; appName = loaded.appName || appName; dataPath = loaded.dataPath; storageError = loaded.warning; smoke = !!loaded.smoke;nativeCompactDrag=!!loaded.nativeCompactDrag; }
   catch { storageError = '本地缓存不可用；本次使用内存模式'; }
   document.title = appName;
-  // Load a credential only when AI is enabled, avoiding unnecessary keychain prompts.
+  // Keys stay in the native backend; the frontend only receives availability.
   if (state.preferences.aiEnabled && !state.preferences.aiPaused && validEndpoint(state.preferences.ai)) hasKey = await bridge.keyStatus(state.preferences.ai).catch(() => false);
   applyAppearance();follow.auto = state.preferences.autoScroll;
   await bridge.aiEvents(receiveAIPause,usage=>{aiUsage=usage;renderStatus();},()=>void enableAI());

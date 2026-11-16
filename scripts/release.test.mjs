@@ -20,3 +20,12 @@ test('release builds remap personal paths and preserve existing encoded compiler
   assert.ok(windows.includes('--remap-path-prefix=C:\\build machine\\news=/workspace/lingdong-news'));
   assert.ok(windows.includes('--remap-path-prefix=C:/build machine/news=/workspace/lingdong-news'));
 });
+
+test('personal builds do not inherit Apple company signing or notarization credentials',async()=>{
+  const {buildEnvironment}=await import('./tauri.mjs');
+  const names=['APPLE_SIGNING_IDENTITY','APPLE_CERTIFICATE','APPLE_CERTIFICATE_PASSWORD','APPLE_ID','APPLE_PASSWORD','APPLE_TEAM_ID','APPLE_API_KEY','APPLE_API_ISSUER','APPLE_API_KEY_PATH'];
+  const original=Object.fromEntries(names.map(name=>[name,'test-only-company-value']));
+  const env=buildEnvironment({...original,PATH:'/toolchain'});
+  for(const name of names){assert.equal(env[name],undefined);assert.equal(original[name],'test-only-company-value');}
+  assert.equal(env.PATH,'/toolchain');
+});

@@ -25,6 +25,12 @@ test('expanded views stay on latest, never drift into history, and jump to actua
     await scroll.hover(); await page.mouse.wheel(0,600);
     await expect.poll(() => scroll.evaluate(e => e.scrollTop)).toBeGreaterThan(200);
     await expect(page.getByRole('button',{name:'回到最新',exact:true})).toContainText('阅读历史');
+    // Native wheel momentum is independent of Playwright's virtual clock.
+    await scroll.evaluate(e=>new Promise<void>(resolve=>{
+      let last=e.scrollTop,quiet=0;
+      const frame=()=>{const next=e.scrollTop;quiet=next===last?quiet+1:0;last=next;if(quiet>=4)resolve();else requestAnimationFrame(frame);};
+      requestAnimationFrame(frame);
+    }));
     const readingPosition=await scroll.evaluate(e=>e.scrollTop);
     await page.mouse.move(0,800); await page.clock.runFor(20_000);
     expect(await scroll.evaluate(e=>e.scrollTop)).toBe(readingPosition);
@@ -126,7 +132,7 @@ test('credential deletion is staged until Save and does not submit the form', as
   await page.getByText('连接 AI 模型',{exact:true}).click();
   await page.getByRole('button',{name:'删除此地址已保存的 Key'}).click();
   await expect(page.locator('.settings-scroll')).toBeVisible();
-  await expect(page.getByLabel('API Key（仅保存在系统凭据库）')).toHaveAttribute('placeholder','保存设置后删除 Key');
+  await expect(page.getByLabel('API Key')).toHaveAttribute('placeholder','保存设置后删除 Key');
 });
 test('title and top bar drag, buttons do not start dragging', async ({page}) => {
   await page.evaluate(()=>(window as any).__newsFloatTest.setMode('feed'));
@@ -139,6 +145,7 @@ test('title and top bar drag, buttons do not start dragging', async ({page}) => 
   expect(await page.evaluate(()=>(window as any).__newsFloatTest.window.dragRequests)).toBe(2);
   await page.getByRole('button',{name:'收起',exact:true}).click();
   await page.setViewportSize({width:300,height:34});
+  await page.screenshot(); // Flush WebKit's resized composited hit-test surface.
   await page.mouse.move(100,17);await page.mouse.down();await page.mouse.move(140,17,{steps:5});await page.mouse.up();
   expect(await page.evaluate(()=>(window as any).__newsFloatTest.window.dragRequests)).toBe(3);
   await expect(page.locator('.pill')).toBeVisible();
@@ -182,8 +189,8 @@ test('first click in a not-yet-painted inactive pager area pages instead of expa
 test('whole compact text is draggable, while a click expands and pager buttons do not drag',async({page})=>{
   await page.setViewportSize({width:300,height:34});
   // WebKit can finish resizing its viewport before the composited hit-test surface catches up.
-  // Locator hover waits for stable geometry before starting each real mouse gesture.
-  for(const x of [12,95,205]){await page.locator('.pill').hover({position:{x,y:17}});await page.mouse.down();await page.mouse.move(x+25,20,{steps:5});await page.mouse.up();await expect(page.locator('.pill')).toBeVisible();}
+  // Flush a painted frame before starting each real mouse gesture.
+  for(const x of [12,95,205]){await page.locator('.pill').hover({position:{x,y:17}});await page.screenshot();await page.mouse.down();await page.mouse.move(x+25,20,{steps:5});await page.mouse.up();await expect(page.locator('.pill')).toBeVisible();}
   expect(await page.evaluate(()=>(window as any).__newsFloatTest.window.dragRequests)).toBe(3);
   await page.getByRole('button',{name:'下一条',exact:true}).click();
   await page.getByRole('button',{name:'上一条',exact:true}).click();
@@ -210,11 +217,13 @@ test('manual previous/next resumes scrolling after a short delay even while hove
 test('resize edges persist compact width and expanded dimensions separately',async({page})=>{
   await page.setViewportSize({width:300,height:34});
   await page.locator('.resize-e').hover();
+  await page.screenshot();
   await page.mouse.move(298,17);await page.mouse.down();await page.mouse.move(238,17,{steps:5});await page.mouse.up();
   await expect.poll(()=>page.evaluate(()=>(window as any).__newsFloatTest.window.width)).toBe(240);
   expect(await page.evaluate(()=>(window as any).__newsFloatTest.window.height)).toBe(34);
   await page.locator('.ticker').click();await page.setViewportSize({width:380,height:320});
   await page.locator('.resize-se').hover();
+  await page.screenshot();
   await page.mouse.move(374,314);await page.mouse.down();await page.mouse.move(334,274,{steps:5});await page.mouse.up();
   await expect.poll(()=>page.evaluate(()=>(window as any).__newsFloatTest.window.width)).toBe(340);
   expect(await page.evaluate(()=>(window as any).__newsFloatTest.window.height)).toBe(280);
@@ -387,8 +396,8 @@ test('source removal and credential edits are staged, with invalid URL errors vi
   await page.evaluate(async()=>{const h=(window as any).__newsFloatTest;await h.setMode('feed');await h.setMode('settings');});await page.getByText('添加新闻来源',{exact:true}).click();await page.getByRole('button',{name:'添加来源',exact:true}).click();
   await page.getByLabel('来源名称',{exact:true}).fill('私有聚合');await page.getByLabel('订阅或接口 URL',{exact:true}).fill('https://example.com/news?api_key=secret');
   await page.getByRole('button',{name:'保存',exact:true}).click();await expect(page.getByRole('alert')).toContainText('密钥请单独填写');
-  await page.getByLabel('订阅或接口 URL',{exact:true}).fill('https://example.com/news?limit=50');await page.getByLabel('来源鉴权',{exact:true}).selectOption('bearer');await page.getByLabel('来源 Key（系统凭据库）',{exact:true}).fill('test-only-placeholder');
-  await page.getByRole('button',{name:'删除来源已存 Key',exact:true}).click();await expect(page.getByLabel('来源 Key（系统凭据库）',{exact:true})).toHaveAttribute('placeholder','保存设置后删除 Key');
+  await page.getByLabel('订阅或接口 URL',{exact:true}).fill('https://example.com/news?limit=50');await page.getByLabel('来源鉴权',{exact:true}).selectOption('bearer');await page.getByLabel('来源 Key',{exact:true}).fill('test-only-placeholder');
+  await page.getByRole('button',{name:'删除来源已存 Key',exact:true}).click();await expect(page.getByLabel('来源 Key',{exact:true})).toHaveAttribute('placeholder','保存设置后删除 Key');
   await page.getByRole('button',{name:'取消',exact:true}).click();expect(await page.evaluate(()=>(window as any).__newsFloatTest.state().preferences.customSources)).toHaveLength(0);
 });
 test('AI protocols expose system prompts, batch settings and protocol-specific JSON controls',async({page})=>{

@@ -10,7 +10,7 @@ Node.js 24、pnpm 10.5、Rust stable、Git；打包新闻源需要 Python 3。
 | --- | --- |
 | macOS | Xcode Command Line Tools |
 | Windows | Visual Studio C++ Build Tools、WebView2 |
-| Linux | WebKitGTK 4.1、GTK、AppIndicator、OpenSSL、D-Bus、Secret Service |
+| Linux | WebKitGTK 4.1、GTK、AppIndicator、OpenSSL、D-Bus |
 
 [Tauri 环境配置](https://v2.tauri.app/start/prerequisites/)
 

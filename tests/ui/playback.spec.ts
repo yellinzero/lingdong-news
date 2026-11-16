@@ -36,7 +36,8 @@ test('clicking the incoming highlighted text opens that story rather than the ou
   await page.evaluate(()=>{const h=(window as any).__newsFloatTest,s=h.state();s.preferences.keywordEnabled=true;s.preferences.keywords='新闻 1';h.add([]);});
   const distance=await page.evaluate(()=>(window as any).__newsFloatTest.tickerDistance());
   await page.clock.runFor(2200+Math.ceil((distance-100)*10));
-  await page.evaluate(()=>{const h=(window as any).__newsFloatTest,a=document.querySelector('.ticker-track')!.getAnimations()[0];if(a)a.currentTime=h.tickerPosition()*10;});
+  await page.evaluate(()=>{const h=(window as any).__newsFloatTest,a=document.querySelector('.ticker-track')!.getAnimations()[0];if(a){a.pause();a.currentTime=h.tickerPosition()*10;}});
+  await page.screenshot();
   await expect(page.locator('.ticker-upcoming')).toHaveClass(/matched/);
   const rect=await page.locator('.ticker-upcoming').boundingBox();await page.mouse.click(rect!.x+5,rect!.y+15);await page.setViewportSize({width:480,height:640});await page.clock.runFor(50);
   const story=page.locator('article[data-id="cls:played-1"]');await expect(story).toHaveClass(/story-expanded/);await expect(story).toBeInViewport();

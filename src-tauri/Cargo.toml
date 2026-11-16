@@ -33,16 +33,11 @@ chrono = {version="0.4",default-features=false,features= ["std"] }
 sys-locale = "0.3"
 
 [target.'cfg(target_os = "macos")'.dependencies]
-keyring = { version = "3.6.3", features = ["apple-native"] }
 plist = "1"
 objc2 = "0.6"
 block2 = "0.6"
 objc2-app-kit = {version="0.3.2",default-features=false,features= ["NSWindow", "NSEvent", "NSGraphicsContext"] }
 objc2-foundation = {version="0.3.2",default-features=false,features= ["NSProcessInfo"] }
-[target.'cfg(target_os = "windows")'.dependencies]
-keyring = { version = "3.6.3", features = ["windows-native"] }
-[target.'cfg(target_os = "linux")'.dependencies]
-keyring = { version = "3.6.3", features = ["sync-secret-service", "crypto-rust"] }
 
 [profile.release]
 codegen-units = 1

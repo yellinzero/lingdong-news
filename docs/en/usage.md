@@ -50,7 +50,7 @@ Set news age, request rate and character limits in “判断范围与用量保�
 
 Settings controls theme, accent and scrolling speed. Click the pin to toggle always-on-top. Window dimensions are saved automatically.
 
-“本地数据” shows the storage path. Keys use the OS credential store.
+“本地数据” shows the storage path. Keys are stored as plaintext in a separate local file and excluded from configuration exports.
 
 | Platform | Default directory |
 | --- | --- |

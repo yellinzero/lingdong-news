@@ -7,6 +7,8 @@ import {fileURLToPath,pathToFileURL} from 'node:url';
 const root=fileURLToPath(new URL('..',import.meta.url));
 export function buildEnvironment(environment=process.env,workspace=root,home=homedir(),temporary=tmpdir()){
   const env={...environment};
+  // This personal project must not inherit a machine's company signing account.
+  for(const name of ['APPLE_SIGNING_IDENTITY','APPLE_CERTIFICATE','APPLE_CERTIFICATE_PASSWORD','APPLE_ID','APPLE_PASSWORD','APPLE_TEAM_ID','APPLE_API_KEY','APPLE_API_ISSUER','APPLE_API_KEY_PATH'])delete env[name];
   const flags=env.CARGO_ENCODED_RUSTFLAGS?.split('\x1f')??(env.RUSTFLAGS??env.CARGO_BUILD_RUSTFLAGS??'').split(/\s+/).filter(Boolean);
   const mappings=[
     [home,'/build/home'],

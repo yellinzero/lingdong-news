@@ -1,0 +1,7 @@
+import {existsSync,readFileSync,readdirSync,statSync} from 'node:fs';import {join,resolve} from 'node:path';import {fileURLToPath} from 'node:url';
+const root=fileURLToPath(new URL('..',import.meta.url));const files=['README.md','README.en.md'];
+function walk(dir){for(const name of readdirSync(join(root,dir))){const p=join(dir,name);if(statSync(join(root,p)).isDirectory())walk(p);else if(p.endsWith('.md'))files.push(p);}}
+walk('docs');walk('source-adapters');const failures=[];
+for(const file of files){const content=readFileSync(join(root,file),'utf8').replace(/```[\s\S]*?```/g,'');const links=[...content.matchAll(/\]\(([^)]+)\)/g)].map(m=>m[1]).concat([...content.matchAll(/(?:src|href)="([^"]+)"/g)].map(m=>m[1]));for(let target of links){target=target.trim().replace(/^<|>$/g,'');if(/^(https?:|mailto:|#)/.test(target))continue;target=target.split('#')[0];if(!target)continue;const p=resolve(root,file,'..',decodeURIComponent(target));if(!existsSync(p))failures.push(`${file}: missing ${target}`);}}
+for(const name of ['LICENSE','src-tauri/icons/icon.svg','src-tauri/icons/icon.icns','src-tauri/icons/icon.ico'])if(!existsSync(join(root,name)))failures.push(`Missing ${name}`);
+if(!readFileSync(join(root,'LICENSE'),'utf8').startsWith('MIT License'))failures.push('Project license must be MIT');if(failures.length){console.error(failures.join('\n'));process.exitCode=1;}else console.log(`Checked ${files.length} documentation files and local links.`);

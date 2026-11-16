@@ -1,0 +1,27 @@
+{
+  "version": 2,
+  "sources": [
+    {
+      "manifest": {
+        "id": "custom:example-market",
+        "name": "自定义逻辑示例",
+        "version": "1.0.0",
+        "apiVersion": 1,
+        "entry": "adapter.js",
+        "network": [
+          "http://127.0.0.1:18765"
+        ],
+        "config": [
+          {
+            "key": "channel",
+            "label": "频道",
+            "kind": "string",
+            "default": "market",
+            "required": true
+          }
+        ]
+      },
+      "script": "function fetch(ctx) {\n  const response = ctx.request({\n    url: 'http://127.0.0.1:18765/plugin-news', method: 'POST',\n    headers: {'Content-Type': 'application/json'},\n    body: JSON.stringify({channel: ctx.config.channel})\n  });\n  if (response.status !== 200) throw new Error(`上游 HTTP ${response.status}`);\n  const data = JSON.parse(response.text);\n  return {version: 1, items: data.rows.map(row => ({\n    id: String(row.uid), body: row.text,\n    publishedAt: row.seconds * 1000, tags: [ctx.config.channel]\n  }))};\n}\n"
+    }
+  ]
+}

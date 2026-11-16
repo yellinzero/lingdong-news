@@ -1,0 +1,11 @@
+{
+  "id": "jin10",
+  "name": "金十",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "entry": "adapter.js",
+  "network": [
+    "https://www.jin10.com"
+  ],
+  "config": []
+}

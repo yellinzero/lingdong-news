@@ -1,0 +1,47 @@
+{
+  "version": 2,
+  "sources": [
+    {
+      "manifest": {
+        "id": "cls",
+        "name": "财联社",
+        "version": "1.0.0",
+        "apiVersion": 1,
+        "entry": "adapter.js",
+        "network": [
+          "https://www.cls.cn"
+        ],
+        "config": []
+      },
+      "script": "function fetch(ctx) {\n  const seconds = Math.floor(ctx.now / 1000);\n  const query = `appName=CailianpressWeb&last_time=${seconds}&os=web&refresh_type=1&rn=50&sv=7.7.5`;\n  const sign = ctx.md5(ctx.sha1(query));\n  const response = ctx.request({\n    url: `https://www.cls.cn/v1/roll/get_roll_list?${query}&sign=${sign}`,\n    headers: {Referer: 'https://www.cls.cn/telegraph'}\n  });\n  if (response.status !== 200) throw new Error(`上游 HTTP ${response.status}`);\n  return ctx.mapJSON(response.text, {\n  \"itemsPath\": \"data.roll_data\",\n  \"idPath\": \"id\",\n  \"titlePath\": \"title\",\n  \"bodyPaths\": [\n    \"content\",\n    \"brief\"\n  ],\n  \"datePath\": \"ctime\",\n  \"dateUnit\": \"seconds\",\n  \"urlTemplate\": \"https://www.cls.cn/detail/{id}\",\n  \"exclude\": [\n    {\n      \"path\": \"is_ad\",\n      \"op\": \"truthy\"\n    }\n  ]\n});\n}\n"
+    },
+    {
+      "manifest": {
+        "id": "wallstreet",
+        "name": "华尔街见闻",
+        "version": "1.0.0",
+        "apiVersion": 1,
+        "entry": "adapter.js",
+        "network": [
+          "https://api-one.wallstcn.com"
+        ],
+        "config": []
+      },
+      "script": "function fetch(ctx) {\n  const response = ctx.request({\n    url: 'https://api-one.wallstcn.com/apiv1/content/lives?channel=global-channel&limit=50'\n  });\n  if (response.status !== 200) throw new Error(`上游 HTTP ${response.status}`);\n  return ctx.mapJSON(response.text, {\n  \"itemsPath\": \"data.items\",\n  \"idPath\": \"id\",\n  \"titlePath\": \"title\",\n  \"bodyPaths\": [\n    \"content_text\",\n    \"content\"\n  ],\n  \"datePath\": \"display_time\",\n  \"dateUnit\": \"seconds\",\n  \"urlPath\": \"uri\",\n  \"urlTemplate\": \"https://wallstreetcn.com/live/{id}\"\n});\n}\n"
+    },
+    {
+      "manifest": {
+        "id": "jin10",
+        "name": "金十",
+        "version": "1.0.0",
+        "apiVersion": 1,
+        "entry": "adapter.js",
+        "network": [
+          "https://www.jin10.com"
+        ],
+        "config": []
+      },
+      "script": "function fetch(ctx) {\n  const response = ctx.request({\n    url: `https://www.jin10.com/flash_newest.js?t=${Math.floor(ctx.now / 1000)}`,\n    headers: {Referer: 'https://www.jin10.com/'}\n  });\n  if (response.status !== 200) throw new Error(`上游 HTTP ${response.status}`);\n  return ctx.mapJSON(response.text, {\n  \"itemsPath\": \"\",\n  \"idPath\": \"id\",\n  \"titlePath\": \"data.title\",\n  \"bodyPaths\": [\n    \"data.content\"\n  ],\n  \"datePath\": \"time\",\n  \"dateUnit\": \"local\",\n  \"timezone\": \"+08:00\",\n  \"urlTemplate\": \"https://flash.jin10.com/detail/{id}\",\n  \"jsonPrefix\": \"var newest =\",\n  \"exclude\": [\n    {\n      \"path\": \"channel\",\n      \"op\": \"contains\",\n      \"value\": 5\n    },\n    {\n      \"path\": \"data.lock\",\n      \"op\": \"truthy\"\n    },\n    {\n      \"path\": \"data.vip_level\",\n      \"op\": \"gt\",\n      \"value\": 0\n    }\n  ]\n});\n}\n"
+    }
+  ]
+}

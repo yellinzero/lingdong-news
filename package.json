@@ -1,0 +1,38 @@
+{
+  "name": "lingdong-news",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc --noEmit && vite build",
+    "tauri": "node scripts/tauri.mjs",
+    "test": "tsx --test tests/*.test.ts",
+    "test:ui": "playwright test",
+    "check:sources": "cargo run --manifest-path src-tauri/Cargo.toml -- --check-sources",
+    "version:check": "node scripts/version.mjs check",
+    "version:set": "node scripts/version.mjs set",
+    "test:release": "node --test scripts/release.test.mjs",
+    "icons": "node scripts/generate-icons.mjs",
+    "docs:screenshots": "node scripts/screenshots.mjs",
+    "docs:check": "node scripts/check-docs.mjs"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "2.12.4"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2.12.4",
+    "@playwright/test": "1.65.1",
+    "vite": "8.3.8",
+    "typescript": "~5.9.3",
+    "tsx": "^4.21.0",
+    "@types/node": "^24.10.0"
+  },
+  "packageManager": "pnpm@10.5.0",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  },
+  "license": "MIT"
+}

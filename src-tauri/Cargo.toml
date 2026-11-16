@@ -1,0 +1,52 @@
+[package]
+name = "lingdong-news"
+version = "0.1.0"
+description = "A small cross-platform personal news ticker"
+edition = "2021"
+rust-version = "1.85"
+license = "MIT"
+
+[lib]
+name = "lingdong_news"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "macos-private-api", "image-png"] }
+tauri-plugin-single-instance = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+reqwest = { version = "0.12", default-features = false, features = ["native-tls", "json", "stream", "system-proxy"] }
+tokio = { version = "1", features = ["time", "sync"] }
+sha1 = "0.10"
+md-5 = "0.10"
+url = "2"
+tempfile = "3"
+feed-rs = { version = "3", default-features = false }
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
+rquickjs = { version = "=0.11.0", default-features = false, features = ["std"] }
+quick-xml = { version = "0.42", features = ["escape-html"] }
+
+chrono = {version="0.4",default-features=false,features= ["std"] }
+sys-locale = "0.3"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+keyring = { version = "3.6.3", features = ["apple-native"] }
+plist = "1"
+objc2 = "0.6"
+block2 = "0.6"
+objc2-app-kit = {version="0.3.2",default-features=false,features= ["NSWindow", "NSEvent", "NSGraphicsContext"] }
+objc2-foundation = {version="0.3.2",default-features=false,features= ["NSProcessInfo"] }
+[target.'cfg(target_os = "windows")'.dependencies]
+keyring = { version = "3.6.3", features = ["windows-native"] }
+[target.'cfg(target_os = "linux")'.dependencies]
+keyring = { version = "3.6.3", features = ["sync-secret-service", "crypto-rust"] }
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true
+panic = "abort"

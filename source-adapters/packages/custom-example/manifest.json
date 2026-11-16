@@ -1,0 +1,19 @@
+{
+  "id": "custom:example-market",
+  "name": "自定义逻辑示例",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "entry": "adapter.js",
+  "network": [
+    "http://127.0.0.1:18765"
+  ],
+  "config": [
+    {
+      "key": "channel",
+      "label": "频道",
+      "kind": "string",
+      "default": "market",
+      "required": true
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<opml version="2.0" xmlns:nf="https://newsfloat.local/opml">
+  <head><title>本地订阅演示</title></head>
+  <body>
+    <outline text="开发示例">
+      <outline text="本地 RSS 演示" type="rss" xmlUrl="http://127.0.0.1:8765/rss.xml" nf:format="feed"/>
+      <outline text="本地 Atom 演示" type="rss" xmlUrl="http://127.0.0.1:8765/atom.xml" nf:format="feed"/>
+      <outline text="本地标准 JSON 演示" type="rss" xmlUrl="http://127.0.0.1:8765/news" nf:format="json"/>
+    </outline>
+  </body>
+</opml>

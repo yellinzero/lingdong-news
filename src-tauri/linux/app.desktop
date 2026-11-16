@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=LingDongNews
+Name[zh]=灵动新闻
+Name[zh_CN]=灵动新闻
+Name[zh_TW]=灵动新闻
+Name[zh_HK]=灵动新闻
+Exec={{exec}}
+Icon={{icon}}
+Categories={{categories}}
+Terminal=false
+StartupWMClass={{exec}}

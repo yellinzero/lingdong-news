@@ -1,0 +1,44 @@
+# Dependencies and build output
+node_modules/
+.pnpm-store/
+target/
+/web-dist/
+/dist/
+/artifacts/
+/src-tauri/gen/
+*.tsbuildinfo
+
+# Tests and caches
+/test-results/
+/playwright-report/
+/.playwright-cli/
+/coverage/
+__pycache__/
+*.pyc
+*.log
+
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+*.local
+apikey
+/secrets/
+*.pem
+*.key
+*.p8
+*.p12
+*.pfx
+*.mobileprovision
+*.jks
+*.keystore
+
+# Editor, OS and design-tool state
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+.impeccable/
+*.swp
+*.swo
+*~

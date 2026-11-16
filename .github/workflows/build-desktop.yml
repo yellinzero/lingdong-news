@@ -1,0 +1,119 @@
+name: Desktop checks and packages
+on:
+  workflow_call:
+    inputs:
+      release:
+        type: boolean
+        default: false
+permissions:
+  contents: read
+jobs:
+  quality:
+    name: Version, logic and browser tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.5.0
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: '24'
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm version:check
+      - run: pnpm docs:check
+      - run: pnpm test:release
+      - run: pnpm test
+      - run: pnpm build
+      - run: pnpm exec playwright install --with-deps webkit chromium
+      - run: pnpm test:ui --workers=1 --reporter=line,html
+      - uses: actions/upload-artifact@v7.0.2
+        if: failure()
+        with:
+          name: browser-test-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+  native:
+    name: ${{ matrix.platform }} build
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos
+            os: macos-latest
+            target: universal-apple-darwin
+            rust-targets: aarch64-apple-darwin,x86_64-apple-darwin
+            bundles: app,dmg
+          - platform: windows
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            rust-targets: x86_64-pc-windows-msvc
+            bundles: nsis
+          - platform: linux
+            os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            rust-targets: x86_64-unknown-linux-gnu
+            bundles: deb,appimage
+    defaults:
+      run:
+        working-directory: .
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.5.0
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: '24'
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust-targets }}
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2.9.3
+        with:
+          workspaces: src-tauri -> target
+          key: ${{ matrix.target }}
+      - if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf xdg-utils libssl-dev libdbus-1-dev
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm version:check
+      - run: cargo fmt --check --manifest-path src-tauri/Cargo.toml
+      - run: cargo test --locked --manifest-path src-tauri/Cargo.toml
+      - name: Build platform package
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: '1'
+          TARGET: ${{ matrix.target }}
+          BUNDLES: ${{ matrix.bundles }}
+        run: pnpm tauri build --target "$TARGET" --bundles "$BUNDLES" -- --locked
+      - name: Collect named release installers
+        if: inputs.release
+        env:
+          TARGET: ${{ matrix.target }}
+          PLATFORM: ${{ matrix.platform }}
+        run: node scripts/release.mjs collect "src-tauri/target/$TARGET/release/bundle" artifacts "$PLATFORM"
+      - uses: actions/upload-artifact@v7.0.2
+        if: inputs.release
+        with:
+          name: installers-${{ matrix.platform }}
+          path: artifacts/*
+          if-no-files-found: error
+          retention-days: 7

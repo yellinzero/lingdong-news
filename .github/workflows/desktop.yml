@@ -1,0 +1,15 @@
+name: Desktop CI
+on:
+  push:
+    branches: [dev]
+  pull_request:
+    branches: [dev, main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: desktop-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  checks:
+    uses: ./.github/workflows/build-desktop.yml

@@ -1,0 +1,27 @@
+{
+  "version": 2,
+  "sources": [
+    {
+      "manifest": {
+        "id": "custom:example-rss",
+        "name": "RSS 逻辑渠道示例",
+        "version": "1.0.0",
+        "apiVersion": 1,
+        "entry": "adapter.js",
+        "network": [
+          "http://127.0.0.1:18765"
+        ],
+        "config": [
+          {
+            "key": "url",
+            "label": "订阅地址",
+            "kind": "string",
+            "default": "http://127.0.0.1:18765/rss.xml",
+            "required": true
+          }
+        ]
+      },
+      "script": "function fetch(ctx) {\n  const response = ctx.request({url: ctx.config.url});\n  if (response.status !== 200) throw new Error(`上游 HTTP ${response.status}`);\n  return ctx.parseFeed(response.text, ctx.config.url);\n}\n"
+    }
+  ]
+}

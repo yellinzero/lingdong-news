@@ -205,7 +205,7 @@ test('drag and resize remain usable when global pointer coordinates are unavaila
   expect(await page.evaluate(()=>(window as any).__newsFloatTest.window.dragRequests)).toBe(1);
   await expect(page.locator('.pill')).toBeVisible();
   await page.locator('.resize-e').hover();await page.screenshot();
-  await page.mouse.down();await page.mouse.move(238,17,{steps:5});await page.mouse.up();
+  await page.mouse.move(298,17);await page.mouse.down();await page.mouse.move(238,17,{steps:5});await page.mouse.up();
   await expect.poll(()=>page.evaluate(()=>(window as any).__newsFloatTest.window.width)).toBe(240);
 });
 test('manual previous/next resumes scrolling after a short delay even while hovered, then advances; new arrivals win',async({page})=>{

@@ -1,5 +1,13 @@
 import {readFileSync} from 'node:fs';
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page, type Locator } from '@playwright/test';
+async function settleWheel(scroll:Locator){
+  // Native wheel momentum is independent of Playwright's virtual clock.
+  await scroll.evaluate(e=>new Promise<void>(resolve=>{
+    let last=e.scrollTop,quiet=0;
+    const frame=()=>{const next=e.scrollTop;quiet=next===last?quiet+1:0;last=next;if(quiet>=4)resolve();else requestAnimationFrame(frame);};
+    requestAnimationFrame(frame);
+  }));
+}
 const pageErrors = new WeakMap<Page, string[]>();
 test.afterEach(async ({page}) => { expect(pageErrors.get(page) ?? [], 'Unexpected browser errors').toEqual([]); });
 test.beforeEach(async ({page}) => { const errors: string[] = []; pageErrors.set(page, errors); page.on('pageerror', error => errors.push(error.stack ?? error.message)); await page.goto('/'); await page.waitForFunction(() => !!(window as any).__newsFloatTest); });
@@ -25,12 +33,7 @@ test('expanded views stay on latest, never drift into history, and jump to actua
     await scroll.hover(); await page.mouse.wheel(0,600);
     await expect.poll(() => scroll.evaluate(e => e.scrollTop)).toBeGreaterThan(200);
     await expect(page.getByRole('button',{name:'回到最新',exact:true})).toContainText('阅读历史');
-    // Native wheel momentum is independent of Playwright's virtual clock.
-    await scroll.evaluate(e=>new Promise<void>(resolve=>{
-      let last=e.scrollTop,quiet=0;
-      const frame=()=>{const next=e.scrollTop;quiet=next===last?quiet+1:0;last=next;if(quiet>=4)resolve();else requestAnimationFrame(frame);};
-      requestAnimationFrame(frame);
-    }));
+    await settleWheel(scroll);
     const readingPosition=await scroll.evaluate(e=>e.scrollTop);
     await page.mouse.move(0,800); await page.clock.runFor(20_000);
     expect(await scroll.evaluate(e=>e.scrollTop)).toBe(readingPosition);
@@ -49,6 +52,7 @@ test('turning off automatic latest preserves manual reading anchor and text sele
   await page.getByRole('button',{name:'保存',exact:true}).click();
   const scroll=page.locator('.news-scroll'); await scroll.hover(); await page.mouse.wheel(0,700);
   await expect.poll(() => scroll.evaluate(e => e.scrollTop)).toBeGreaterThan(500);
+  await settleWheel(scroll);
   const anchor=await scroll.evaluate(e => {
     const r=[...e.querySelectorAll<HTMLElement>('article')].find(n=>n.offsetTop+n.offsetHeight>=e.scrollTop)!;
     return {id:r.dataset.id,offset:r.offsetTop-e.scrollTop};

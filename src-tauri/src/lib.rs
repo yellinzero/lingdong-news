@@ -73,6 +73,7 @@ struct Loaded {
     data_path: String,
     smoke: bool,
     native_compact_drag: bool,
+    native_resize_drag: bool,
 }
 
 #[tauri::command]
@@ -85,6 +86,7 @@ fn load_state(app: tauri::AppHandle, backend: tauri::State<Backend>) -> Loaded {
         data_path: backend.path.display().to_string(),
         smoke: backend.smoke,
         native_compact_drag: cfg!(target_os = "macos"),
+        native_resize_drag: !cfg!(target_os = "macos"),
     }
 }
 #[tauri::command]
@@ -773,6 +775,14 @@ fn debounce_geometry(window: &tauri::WebviewWindow) {
     });
 }
 #[tauri::command]
+fn prepare_window_resize(window: tauri::WebviewWindow) {
+    *window
+        .state::<Backend>()
+        .geometry_ignore_until
+        .lock()
+        .unwrap() = std::time::Instant::now();
+}
+#[tauri::command]
 fn resize_window(
     window: tauri::WebviewWindow,
     x: f64,
@@ -981,6 +991,7 @@ pub fn run() {
             drag_window,
             window_status,
             resize_window,
+            prepare_window_resize,
             open_original,
             quit
         ])

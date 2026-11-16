@@ -133,7 +133,7 @@ function finishIncomingTicker(now:number){
 }
 let hoverPill = false, saveTimer: ReturnType<typeof setTimeout> | undefined;
 let pagePauseUntil = 0;
-let nativeCompactDrag=false;
+let nativeCompactDrag=false,nativeResizeDrag=false;
 let nativeHovered=false,keyboardInput=false;
 function updateNativeHover(inside:boolean){
   nativeHovered=inside;
@@ -258,14 +258,14 @@ function wireDrag(node: HTMLElement) {
 }
 function wireCompactDrag(node: HTMLElement) {
   node.classList.add('compact-drag-region'); node.title = '拖动可移动；单击查看快讯；左右方向键翻页';
-  let start: {x:number;y:number;id:number} | undefined, dragged = false;
+  let start: {x:number;y:number;clientX:number;clientY:number;id:number} | undefined, dragged = false;
   node.addEventListener('pointerdown', event => {
     if (event.button !== 0 || (event.target as Element).closest('button,.resize-handle')) return;
-    start = {x:event.screenX,y:event.screenY,id:event.pointerId}; dragged = false;
+    start = {x:event.screenX,y:event.screenY,clientX:event.clientX,clientY:event.clientY,id:event.pointerId}; dragged = false;
     node.setPointerCapture(event.pointerId);
   });
   node.addEventListener('pointermove', event => {
-    if (!start || dragged || Math.hypot(event.screenX-start.x,event.screenY-start.y)<4) return;
+    if (!start || dragged || Math.max(Math.hypot(event.screenX-start.x,event.screenY-start.y),Math.hypot(event.clientX-start.clientX,event.clientY-start.clientY))<4) return;
     dragged = true; node.classList.add('is-dragging');
     if (node.hasPointerCapture(start.id)) node.releasePointerCapture(start.id);
     if(!nativeCompactDrag)void bridge.drag().catch(notifyError);
@@ -281,9 +281,12 @@ function addResizeHandles(parent: HTMLElement, compact: boolean) {
     const handle=el('div',`resize-handle resize-${edge}`); handle.dataset.edge=edge; handle.title=compact?'拖动调整宽度':'拖动调整窗口大小';
     handle.addEventListener('pointerdown', event => {
       if(event.button!==0)return; event.preventDefault(); event.stopPropagation();
+      // Let the compositor resize native Windows/Linux windows, including Wayland.
+      if(nativeResizeDrag){void bridge.resizeDrag(edge).catch(notifyError);return;}
       const start={x:event.screenX,y:event.screenY,clientX:event.clientX,clientY:event.clientY}; handle.setPointerCapture(event.pointerId);
       let orientationX=0,orientationY=0;
       const delta=(e:PointerEvent)=>{
+        if(!native)return {x:e.clientX-start.clientX,y:e.clientY-start.clientY};
         const x=e.screenX-start.x,y=e.screenY-start.y;
         // WKWebView versions can expose bottom-origin screenY on macOS. Infer
         // orientation from the first move, before changing the window frame.
@@ -1045,7 +1048,7 @@ function renderSettings(panel: HTMLElement) {
 
 async function start() {
   let smoke = false;
-  try { const loaded = await bridge.load(); state = loaded.state; appName = loaded.appName || appName; dataPath = loaded.dataPath; storageError = loaded.warning; smoke = !!loaded.smoke;nativeCompactDrag=!!loaded.nativeCompactDrag; }
+  try { const loaded = await bridge.load(); state = loaded.state; appName = loaded.appName || appName; dataPath = loaded.dataPath; storageError = loaded.warning; smoke = !!loaded.smoke;nativeCompactDrag=!!loaded.nativeCompactDrag;nativeResizeDrag=!!loaded.nativeResizeDrag; }
   catch { storageError = '本地缓存不可用；本次使用内存模式'; }
   document.title = appName;
   // Keys stay in the native backend; the frontend only receives availability.

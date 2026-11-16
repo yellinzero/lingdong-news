@@ -1,6 +1,7 @@
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { Menu } from '@tauri-apps/api/menu';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import { nameForLocale } from './branding';
 import type { BatchInput, BatchJudgement } from './analysis';
 import { emptyState, type AIConfig, type CustomSource, type PluginPackage, type DiskState, type FeedResult, type Judgement, type NewsItem } from './core';
@@ -23,7 +24,7 @@ const aiOwnedRequests=new Set<string>();let aiRequestSequence=0,aiGeneration=0;
 function trackAI(value:AIPauseState){aiGeneration=Math.max(aiGeneration,value.generation);return value;}
 export const bridge = {
   ownsAIEvent:(requestId?:string)=>!!requestId&&aiOwnedRequests.delete(requestId),
-  load: () => native ? invoke<{ state: DiskState; appName: string; warning?: string; dataPath: string; smoke?: boolean;nativeCompactDrag?:boolean }>('load_state') : Promise.resolve({ state: structuredClone(demoState), appName: nameForLocale(navigator.language), dataPath: '界面预览 · 不读取本机新闻或密钥', warning: undefined, smoke: false,nativeCompactDrag:false }),
+  load: () => native ? invoke<{ state: DiskState; appName: string; warning?: string; dataPath: string; smoke?: boolean;nativeCompactDrag?:boolean;nativeResizeDrag?:boolean }>('load_state') : Promise.resolve({ state: structuredClone(demoState), appName: nameForLocale(navigator.language), dataPath: '界面预览 · 不读取本机新闻或密钥', warning: undefined, smoke: false,nativeCompactDrag:false,nativeResizeDrag:false }),
   save: (state: DiskState) => native ? invoke<void>('save_state', { state, aiGeneration }) : Promise.resolve(void (demoState = structuredClone(state))),
   inspectPackages:(packages:PluginPackage[])=>native?invoke<void>('inspect_source_packages',{packages}):Promise.resolve(),
   refresh: () => native ? invoke<FeedResult[]>('refresh') : Promise.resolve([]),
@@ -46,6 +47,12 @@ export const bridge = {
     Object.assign(previewWindow,previewSizes.get(mode)??{width:mode==='compact'?300:mode==='glance'?380:480,height:mode==='compact'?34:mode==='glance'?320:700});
   },
   drag: () => native ? invoke<void>('drag_window') : Promise.resolve(void previewWindow.dragRequests++),
+  resizeDrag:async(edge:string)=>{
+    const directions:Record<string,Parameters<ReturnType<typeof getCurrentWindow>['startResizeDragging']>[0]>={n:'North',s:'South',e:'East',w:'West',ne:'NorthEast',nw:'NorthWest',se:'SouthEast',sw:'SouthWest'};
+    if(!native||!directions[edge])throw '无效的窗口边缘';
+    await invoke<void>('prepare_window_resize');
+    return getCurrentWindow().startResizeDragging(directions[edge]);
+  },
   setPinned: (pinned: boolean) => native ? invoke<void>('set_pin', { pinned }) : Promise.resolve(void (previewWindow.pinned = pinned)),
   windowStatus: () => native?invoke<{x:number;y:number;pinned:boolean;width:number;height:number;scale:number;native?:{level:number;fullScreenAuxiliary:boolean;allSpaces:boolean;allApplications:boolean}}>('window_status'):Promise.resolve({...previewWindow,native:undefined}),
   hovered:()=>native?invoke<boolean>('window_hover'):Promise.resolve(false),

@@ -197,6 +197,17 @@ test('whole compact text is draggable, while a click expands and pager buttons d
   expect(await page.evaluate(()=>(window as any).__newsFloatTest.window.dragRequests)).toBe(3);
   await page.locator('.ticker').click();await expect(page.locator('.glance')).toBeVisible();
 });
+test('drag and resize remain usable when global pointer coordinates are unavailable',async({page})=>{
+  await page.setViewportSize({width:300,height:34});
+  await page.evaluate(()=>{for(const name of ['screenX','screenY'])Object.defineProperty(MouseEvent.prototype,name,{configurable:true,get:()=>0});});
+  await page.locator('.pill').hover({position:{x:100,y:17}});await page.screenshot();
+  await page.mouse.down();await page.mouse.move(140,17,{steps:5});await page.mouse.up();
+  expect(await page.evaluate(()=>(window as any).__newsFloatTest.window.dragRequests)).toBe(1);
+  await expect(page.locator('.pill')).toBeVisible();
+  await page.locator('.resize-e').hover();await page.screenshot();
+  await page.mouse.down();await page.mouse.move(238,17,{steps:5});await page.mouse.up();
+  await expect.poll(()=>page.evaluate(()=>(window as any).__newsFloatTest.window.width)).toBe(240);
+});
 test('manual previous/next resumes scrolling after a short delay even while hovered, then advances; new arrivals win',async({page})=>{
   await page.setViewportSize({width:300,height:34});await page.clock.install();await page.locator('.pill').hover();
   await page.getByRole('button',{name:'下一条',exact:true}).click();

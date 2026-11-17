@@ -143,7 +143,7 @@ python3 scripts/pack-source.py my-source --out my-source.news-source.json
 cargo run --manifest-path src-tauri/Cargo.toml -- --check-source-file my-source.news-source.json
 ```
 
-Install and save through “设置 → 新闻来源 → 添加新闻来源 → 从文件添加”. Test authenticated sources in the app.
+Install and save through “Settings → News sources → Add news sources → Import file”. Test authenticated sources in the app.
 
 Share the package directly; it can contain multiple sources. See the [package schema](../source-package.schema.json).
 

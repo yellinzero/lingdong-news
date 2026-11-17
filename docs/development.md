@@ -49,6 +49,10 @@ pnpm tauri build
 
 在目标系统构建，产物位于 `src-tauri/target/release/bundle/`。Mac 可用 `bash scripts/build-desktop.sh` 生成 `dist/LingDongNews.app`，用 `--ui-smoke` 检查窗口交互。
 
+## 界面语言
+
+文案使用 `src/i18n.ts` 的 `t()`，英文译文放在 `src/locales/en.ts`。保留占位符；不要翻译新闻、来源名称或用户提示词。
+
 ## 更新资源
 
 - 图标：修改 `src-tauri/icons/icon.svg`，运行 `pnpm icons`。

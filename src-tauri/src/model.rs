@@ -131,6 +131,7 @@ impl Default for AiLimits {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default, deny_unknown_fields)]
 pub struct Preferences {
+    pub language: String,
     pub theme: String,
     pub accent: String,
     pub ai_paused: bool,
@@ -154,6 +155,7 @@ pub struct Preferences {
 impl Default for Preferences {
     fn default() -> Self {
         Self {
+            language: "system".into(),
             theme: "dark".into(),
             accent: "orange".into(),
             ai_paused: true,

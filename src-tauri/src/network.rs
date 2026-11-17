@@ -130,6 +130,9 @@ pub fn source_account(source: &CustomSource) -> Result<String, String> {
     ))
 }
 pub fn validate_preferences(prefs: &Preferences) -> Result<(), String> {
+    if !["system", "zh-CN", "en"].contains(&prefs.language.as_str()) {
+        return Err("语言设置无效".into());
+    }
     if !["dark", "light", "system"].contains(&prefs.theme.as_str())
         || !["orange", "blue", "green", "purple"].contains(&prefs.accent.as_str())
     {

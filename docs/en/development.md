@@ -60,3 +60,7 @@ Repack preinstalled sources after editing:
 ```sh
 python3 scripts/pack-source.py source-adapters/packages/cls source-adapters/packages/wallstreet source-adapters/packages/jin10 --out source-adapters/packages/preinstalled.json
 ```
+
+## Interface language
+
+Use `t()` from `src/i18n.ts`; add English copy in `src/locales/en.ts`. Preserve placeholders. Keep news, source names and user prompts unchanged.

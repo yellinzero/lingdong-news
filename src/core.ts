@@ -1,3 +1,4 @@
+import type { LanguagePreference } from './i18n';
 import { sources } from './feeds';
 export { parseFeed, sourceNames, sources, sourceName, allSources, validSourceURL, validateSources, validateAdapter } from './feeds';
 export type Source = string;
@@ -10,6 +11,7 @@ export interface AIConfig { apiUrl:string; model:string; format:'decisions'|'cha
 export interface AILimits {requestWindowMinutes:number;dailyEnabled:boolean;maxRequestsPerMinute:number;maxInputCharsPerMinute:number;lookbackMinutes:number;newOnly:boolean;includeEstimated:boolean;maxItems24h:number;maxRequests24h:number;maxInputChars24h:number;maxCharsPerRequest:number;maxRetries:number}
 export const defaultAILimits=():AILimits=>({requestWindowMinutes:1,dailyEnabled:false,maxRequestsPerMinute:6,maxInputCharsPerMinute:60000,lookbackMinutes:30,newOnly:true,includeEstimated:false,maxItems24h:100,maxRequests24h:25,maxInputChars24h:120000,maxCharsPerRequest:16000,maxRetries:0});
 export interface Preferences {
+  language: LanguagePreference;
   sources: Source[]; uninstalledSources: Source[]; customSources: CustomSource[]; interval: number; pinned: boolean; keywords: string; keywordEnabled: boolean;
   theme:'dark'|'light'|'system';accent:'orange'|'blue'|'green'|'purple';aiPaused:boolean;aiStartedAt:number;aiLimits:AILimits;
   skipPlayed:boolean;interests: string; aiEnabled: boolean; ai: AIConfig; threshold: number; autoScroll: boolean; scrollSpeed: number;
@@ -21,7 +23,7 @@ export interface AnalysisRecord {key:string;judgement:Judgement;savedAt:number}
 export interface DiskState { analysisHistory:AnalysisRecord[];playbackHistory:PlaybackRecord[];preferences: Preferences; items: NewsItem[]; unread: NewsItem[]; readStories: NewsItem[]; analysisPending:NewsItem[] }
 export interface NewsGroup { id: string; item: NewsItem; members: NewsItem[]; latestDate: number }
 export interface FeedResult { source: Source; warning?:string|null; text: string | null; error: string | null; fetchedAt: number }
-export const defaults = (): Preferences => ({ theme:'dark',accent:'orange',skipPlayed:true,aiPaused:true,aiStartedAt:0,aiLimits:defaultAILimits(),sources: [...sources], uninstalledSources: [], customSources: [], interval: 60, pinned: true, keywords: '', keywordEnabled: false, interests: '', aiEnabled: false, ai: { apiUrl: 'https://openrouter.ai/api/alpha/decisions', model: 'typesafe/jev-1.14', format: 'decisions', systemPrompt:defaultSystemPrompt, auth:'auto', apiVersion:'2023-06-01', jsonMode:'prompt', batchSize:8, concurrency:2, thinkingMode:'default', maxOutputTokens:2048 }, threshold: .7, autoScroll: true, scrollSpeed: 22 });
+export const defaults = (): Preferences => ({ language:'system',theme:'dark',accent:'orange',skipPlayed:true,aiPaused:true,aiStartedAt:0,aiLimits:defaultAILimits(),sources: [...sources], uninstalledSources: [], customSources: [], interval: 60, pinned: true, keywords: '', keywordEnabled: false, interests: '', aiEnabled: false, ai: { apiUrl: 'https://openrouter.ai/api/alpha/decisions', model: 'typesafe/jev-1.14', format: 'decisions', systemPrompt:defaultSystemPrompt, auth:'auto', apiVersion:'2023-06-01', jsonMode:'prompt', batchSize:8, concurrency:2, thinkingMode:'default', maxOutputTokens:2048 }, threshold: .7, autoScroll: true, scrollSpeed: 22 });
 export const emptyState = (): DiskState => ({ analysisHistory:[],playbackHistory:[],preferences: defaults(), items: [], unread: [], readStories: [], analysisPending:[] });
 export function text(item: NewsItem): string {
   if (!item.title) return item.body;

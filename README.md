@@ -2,7 +2,7 @@
   <img src="src-tauri/icons/icon.svg" width="80" height="80" alt="灵动新闻图标">
 </p>
 <h1 align="center">灵动新闻</h1>
-<p align="center">lingdong-news · 0.1.0</p>
+<p align="center">lingdong-news · 0.1.1</p>
 <p align="center">等 Agent 干活的几分钟，想看看新闻，又不想打开一堆网站？</p>
 <p align="center">
   简体中文 · <a href="README.en.md">English</a><br>

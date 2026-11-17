@@ -1,3 +1,4 @@
+import { resolveLanguage } from './i18n';
 export function nameForLocale(locale: string): string {
-  return locale.split(/[-_.]/u)[0].toLowerCase() === 'zh' ? '灵动新闻' : 'LingDongNews';
+  return resolveLanguage('system', locale) === 'en' ? 'LingDongNews' : '灵动新闻';
 }

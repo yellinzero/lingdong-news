@@ -1,3 +1,4 @@
+import { t } from './i18n';
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { Menu } from '@tauri-apps/api/menu';
@@ -24,16 +25,17 @@ const aiOwnedRequests=new Set<string>();let aiRequestSequence=0,aiGeneration=0;
 function trackAI(value:AIPauseState){aiGeneration=Math.max(aiGeneration,value.generation);return value;}
 export const bridge = {
   ownsAIEvent:(requestId?:string)=>!!requestId&&aiOwnedRequests.delete(requestId),
-  load: () => native ? invoke<{ state: DiskState; appName: string; warning?: string; dataPath: string; smoke?: boolean;nativeCompactDrag?:boolean;nativeResizeDrag?:boolean }>('load_state') : Promise.resolve({ state: structuredClone(demoState), appName: nameForLocale(navigator.language), dataPath: '界面预览 · 不读取本机新闻或密钥', warning: undefined, smoke: false,nativeCompactDrag:false,nativeResizeDrag:false }),
+  load: () => native ? invoke<{ state: DiskState; appName: string; systemLocale: string; warning?: string; dataPath: string; smoke?: boolean;nativeCompactDrag?:boolean;nativeResizeDrag?:boolean }>('load_state') : Promise.resolve({ state: structuredClone(demoState), appName: nameForLocale(navigator.language), systemLocale:navigator.language, dataPath: t("界面预览 · 不读取本机新闻或密钥"), warning: undefined, smoke: false,nativeCompactDrag:false,nativeResizeDrag:false }),
   save: (state: DiskState) => native ? invoke<void>('save_state', { state, aiGeneration }) : Promise.resolve(void (demoState = structuredClone(state))),
+  previewLanguage:(language:string|null)=>native?invoke<void>('preview_language',{language}):Promise.resolve(),
   inspectPackages:(packages:PluginPackage[])=>native?invoke<void>('inspect_source_packages',{packages}):Promise.resolve(),
   refresh: () => native ? invoke<FeedResult[]>('refresh') : Promise.resolve([]),
   keyStatus: (config: AIConfig) => native ? invoke<boolean>('key_status', { config }) : Promise.resolve(false),
   saveKey: (config: AIConfig, key: string) => native ? invoke<void>('save_key', { config, key }) : Promise.resolve(),
-  exportSubscriptions:(content:string)=>native?invoke<string>('export_subscriptions',{content}):Promise.resolve('界面预览：已生成 OPML 文本，可复制保存'),
+  exportSubscriptions:(content:string)=>native?invoke<string>('export_subscriptions',{content}):Promise.resolve(t("界面预览：已生成 OPML 文本，可复制保存")),
   saveSourceKey: (source:CustomSource,key:string)=>native?invoke<void>('save_source_key',{source,key}):Promise.resolve(),
-  testSource: (source:CustomSource,key?:string)=>native?invoke<FeedResult>('test_source',{source,key}):Promise.reject('当前是界面预览，请在桌面应用中测试接口'),
-  testAI: (config:AIConfig,interests:string,item:NewsItem,key?:string)=>native?invoke<Judgement>('test_ai',{config,interests,item,key}):Promise.reject('当前是界面预览，请在桌面应用中测试接口'),
+  testSource: (source:CustomSource,key?:string)=>native?invoke<FeedResult>('test_source',{source,key}):Promise.reject(t("当前是界面预览，请在桌面应用中测试接口")),
+  testAI: (config:AIConfig,interests:string,item:NewsItem,key?:string)=>native?invoke<Judgement>('test_ai',{config,interests,item,key}):Promise.reject(t("当前是界面预览，请在桌面应用中测试接口")),
   setAIPaused:(paused:boolean,expectedGeneration?:number)=>{const requestId=String(++aiRequestSequence);aiOwnedRequests.add(requestId);return native?invoke<AIPauseState>('set_ai_paused',{paused,expectedGeneration,requestId}).then(trackAI):Promise.resolve({paused,startedAt:Date.now(),generation:aiRequestSequence,requestId});},
   setAIEnabled:(enabled:boolean,expectedGeneration?:number)=>{const requestId=String(++aiRequestSequence);aiOwnedRequests.add(requestId);return native?invoke<AIPauseState>('set_ai_paused',{paused:!enabled,enabled,expectedGeneration,requestId}).then(trackAI):Promise.resolve({paused:!enabled,enabled,startedAt:Date.now(),generation:aiRequestSequence,requestId});},
   aiUsage:()=>native?invoke<AIUsage>('ai_usage'):Promise.resolve({items:0,requests:0,inputChars:0,resetAt:0}),
@@ -49,7 +51,7 @@ export const bridge = {
   drag: () => native ? invoke<void>('drag_window') : Promise.resolve(void previewWindow.dragRequests++),
   resizeDrag:async(edge:string)=>{
     const directions:Record<string,Parameters<ReturnType<typeof getCurrentWindow>['startResizeDragging']>[0]>={n:'North',s:'South',e:'East',w:'West',ne:'NorthEast',nw:'NorthWest',se:'SouthEast',sw:'SouthWest'};
-    if(!native||!directions[edge])throw '无效的窗口边缘';
+    if(!native||!directions[edge])throw t("无效的窗口边缘");
     await invoke<void>('prepare_window_resize');
     return getCurrentWindow().startResizeDragging(directions[edge]);
   },

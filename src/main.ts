@@ -1,3 +1,5 @@
+import { localizedText, localizedNode, localizedAttr, refreshTranslations, type Label } from './ui-copy';
+import { t, setLanguage, uiLocale, localizeMessage } from './i18n';
 import './style.css';
 import {nameForLocale} from './branding';
 import {BatchPolicy,requestInterval} from './batch-policy';
@@ -20,17 +22,24 @@ const icons: Record<string, string> = {
   arrow:'<path d="M6 18 18 6M6 6h12v12"/>', follow:'<path d="M12 20V4m-5 5 5-5 5 5"/>', pin:'<path d="M9 3h6l-1 6 4 5H6l4-5zM12 14v7"/>',
 };
 function icon(name: string): string { return `<svg viewBox="0 0 24 24" aria-hidden="true">${icons[name] ?? icons.arrow}</svg>`; }
-function el<K extends keyof HTMLElementTagNameMap>(tag: K, className = '', content?: string): HTMLElementTagNameMap[K] {
-  const node = document.createElement(tag); node.className = className; if (content != null) node.textContent = content; return node;
+function el<K extends keyof HTMLElementTagNameMap>(tag: K, className = '', content?: Label): HTMLElementTagNameMap[K] {
+  const node = document.createElement(tag); node.className = className; if (content != null) localizedText(node, content); return node;
 }
-function button(label: string, action: () => void, className = 'icon-button', iconName?: string): HTMLButtonElement {
+function button(label: Label, action: () => void, className = 'icon-button', iconName?: string): HTMLButtonElement {
   const node = el('button', className, iconName ? undefined : label); if (iconName) node.innerHTML = icon(iconName);
   node.type = 'button';
-  node.title = label; node.setAttribute('aria-label', label); node.addEventListener('click', action); return node;
+  localizedAttr(node, 'title', label); localizedAttr(node, 'aria-label', label); node.addEventListener('click', action); return node;
 }
 const root = document.querySelector<HTMLDivElement>('#app')!;
 let state: DiskState = emptyState();
-let appName = nameForLocale(navigator.language);
+let systemLocale = navigator.language;
+let appName = nameForLocale(systemLocale);
+function applyLanguage(prefs = state.preferences) {
+  const language = setLanguage(prefs.language, systemLocale);
+  appName = nameForLocale(language);
+  document.documentElement.lang = language;
+  document.title = appName;
+}
 let hasKey = false, aiError: string | undefined, storageError: string | undefined, dataPath = '';
 let mode: Mode = 'compact', previousMode: Mode = 'feed', paused = false, refreshing = false, judging = false, settingsSaving = false;
 let selectedSource: Source | undefined, search = '', groups: NewsGroup[] = [], diagnosticsOpen = false;
@@ -227,8 +236,8 @@ function applyAppearance(prefs=state.preferences){
 matchMedia('(prefers-color-scheme: light)').addEventListener('change',()=>applyAppearance(settingsDraft??state.preferences));
 function aiAccount(prefs:Preferences){try{return new URL(prefs.ai.apiUrl).origin;}catch{return '';}}
 function modeInfo() { return highlightMode(state.preferences, hasKey||state.preferences.aiPaused, aiError); }
-function issues(): string[] { return [...allSources(state.preferences).filter(s => state.preferences.sources.includes(s)).flatMap(s => feedStates.get(s)?.error ? [`${sourceName(s,state.preferences)}：${feedStates.get(s)!.error}`] : []), ...((aiError||aiBatchError) ? [`AI：${aiError||aiBatchError}`] : []), ...(storageError ? [storageError] : [])]; }
-function notifyError(error: unknown) { storageError = typeof error === 'string' ? error : '操作未完成，请稍后重试'; renderStatus(); }
+function issues(): string[] { return [...allSources(state.preferences).filter(s => state.preferences.sources.includes(s)).flatMap(s => feedStates.get(s)?.error ? [`${sourceName(s,state.preferences)}：${localizeMessage(feedStates.get(s)!.error!)}`] : []), ...((aiError||aiBatchError) ? [`AI：${localizeMessage((aiError||aiBatchError)??'')}`] : []), ...(storageError ? [localizeMessage(storageError)] : [])]; }
+function notifyError(error: unknown) { storageError = typeof error === 'string' ? localizeMessage(error) : t("操作未完成，请稍后重试"); renderStatus(); }
 let savingState:Promise<void>=Promise.resolve();
 async function persist(immediate = false, strict = false): Promise<void> {
   clearTimeout(saveTimer);
@@ -239,7 +248,7 @@ async function persist(immediate = false, strict = false): Promise<void> {
 async function setMode(next: Mode, fromNative = false): Promise<void> {
   if (next === 'settings' && mode !== 'settings') previousMode = mode;
   closeMenus();
-  if(mode==='settings'&&next!=='settings'){settingsDraft=undefined;applyAppearance();}
+  if(mode==='settings'&&next!=='settings'){settingsDraft=undefined;applyAppearance();applyLanguage();void bridge.previewLanguage(null).catch(notifyError);}
   const presentation=fromNative?Promise.resolve():bridge.presentation(next,state.preferences.pinned);
   mode = next; follow.hovering = false; hoverPill = false;visibleStart=0;visibleCount=40;
   if (next !== 'settings') follow.resume();
@@ -248,7 +257,7 @@ async function setMode(next: Mode, fromNative = false): Promise<void> {
 }
 function wireDrag(node: HTMLElement) {
   node.classList.add('window-drag-region');
-  node.title = '按住此处拖动窗口';
+  localizedAttr(node, 'title', () => t("按住此处拖动窗口"));
   node.addEventListener('mousedown', event => {
     if (event.button !== 0 || (event.target as Element).closest('button,input,textarea,select,a,summary')) return;
     // Keep the original native mouse-down event available to WKWebView/AppKit.
@@ -257,7 +266,7 @@ function wireDrag(node: HTMLElement) {
   });
 }
 function wireCompactDrag(node: HTMLElement) {
-  node.classList.add('compact-drag-region'); node.title = '拖动可移动；单击查看快讯；左右方向键翻页';
+  node.classList.add('compact-drag-region'); localizedAttr(node, 'title', () => t("拖动可移动；单击查看快讯；左右方向键翻页"));
   let start: {x:number;y:number;clientX:number;clientY:number;id:number} | undefined, dragged = false;
   node.addEventListener('pointerdown', event => {
     if (event.button !== 0 || (event.target as Element).closest('button,.resize-handle')) return;
@@ -278,7 +287,7 @@ function wireCompactDrag(node: HTMLElement) {
 }
 function addResizeHandles(parent: HTMLElement, compact: boolean) {
   for (const edge of compact ? ['w','e'] : ['w','e','n','s','nw','ne','sw','se']) {
-    const handle=el('div',`resize-handle resize-${edge}`); handle.dataset.edge=edge; handle.title=compact?'拖动调整宽度':'拖动调整窗口大小';
+    const handle=el('div',`resize-handle resize-${edge}`); handle.dataset.edge=edge; localizedAttr(handle, 'title', () => compact?t("拖动调整宽度"):t("拖动调整窗口大小"));
     handle.addEventListener('pointerdown', event => {
       if(event.button!==0)return; event.preventDefault(); event.stopPropagation();
       // Let the compositor resize native Windows/Linux windows, including Wayland.
@@ -324,7 +333,7 @@ function renderPin() {
   const pinned = state.preferences.pinned;
   pin.classList.toggle('is-pinned', pinned);
   pin.setAttribute('aria-pressed', String(pinned));
-  pin.title = pinned ? '已置顶 · 点击取消置顶' : '未置顶 · 点击置顶';
+  localizedAttr(pin, 'title', () => pinned ? t("已置顶 · 点击取消置顶") : t("未置顶 · 点击置顶"));
   pin.setAttribute('aria-label', pin.title);
 }
 function closeMenus() { document.querySelector('.context-menu')?.remove(); root.querySelectorAll<HTMLDetailsElement>('.reader-menu[open]').forEach(menu => { menu.open = false; }); }
@@ -337,24 +346,24 @@ function wireMenu(menu:HTMLDetailsElement){
  menu.addEventListener('focusout',event=>{if(event.relatedTarget&&!menu.contains(event.relatedTarget as Node))menu.open=false;});
 }
 async function openLatest(){search='';selectedSource=undefined;readingToolsOpen=false;await setMode('glance');resumeFollow();}
-function aiMenuLabel(){return aiStarting?'取消开启 AI':!state.preferences.aiEnabled?'开启 AI':state.preferences.aiPaused?'AI 已暂停 · 关闭':'关闭 AI';}
+function aiMenuLabel(){return aiStarting?t("取消开启 AI"):!state.preferences.aiEnabled?t("开启 AI"):state.preferences.aiPaused?t("AI 已暂停 · 关闭"):t("关闭 AI");}
 function aiMenuAction(){if(state.preferences.aiEnabled||aiStarting)void disableAI();else void enableAI();}
 function contextMenu(event: MouseEvent) {
   event.preventDefault(); closeMenus();
   const selected=tickerStoryAt(event.clientX);
   if (native) {
     void bridge.popup([
-      {id:'story',text:'展开这条新闻',action:()=>void openCurrentStory(selected)},
-      {id:'glance',text:'查看最新快讯',action:()=>void openLatest()},
-      {id:'settings',text:'设置',action:()=>void setMode('settings')},
+      {id:'story',text:t("展开这条新闻"),action:()=>void openCurrentStory(selected)},
+      {id:'glance',text:t("查看最新快讯"),action:()=>void openLatest()},
+      {id:'settings',text:t("设置"),action:()=>void setMode('settings')},
       {id:'ai',text:aiMenuLabel(),action:aiMenuAction},
-      {id:'pause',text:paused?'继续更新':'暂停更新',action:togglePause},
-      {id:'quit',text:'退出',action:()=>void bridge.quit()},
+      {id:'pause',text:paused?t("继续更新"):t("暂停更新"),action:togglePause},
+      {id:'quit',text:t("退出"),action:()=>void bridge.quit()},
     ]).catch(notifyError);
     return;
   }
   const menu = el('div', 'context-menu');
-  menu.append(button('展开这条新闻', () => { closeMenus();void openCurrentStory(selected); }, ''),button('查看最新快讯', () => { closeMenus(); void openLatest(); }, ''), button('设置', () => { closeMenus(); void setMode('settings'); }, ''), button(paused ? '继续更新' : '暂停更新', () => { closeMenus(); togglePause(); }, ''), button('退出', () => void bridge.quit(), ''));
+  menu.append(button(() => t("展开这条新闻"), () => { closeMenus();void openCurrentStory(selected); }, ''),button(() => t("查看最新快讯"), () => { closeMenus(); void openLatest(); }, ''), button(() => t("设置"), () => { closeMenus(); void setMode('settings'); }, ''), button(() => paused ? t("继续更新") : t("暂停更新"), () => { closeMenus(); togglePause(); }, ''), button(() => t("退出"), () => void bridge.quit(), ''));
   menu.append(button(aiMenuLabel(),()=>{closeMenus();aiMenuAction();},''));
   root.append(menu);
   menu.style.left = `${Math.min(event.clientX, Math.max(4, innerWidth - 130))}px`; menu.style.top = `${Math.min(event.clientY, Math.max(4, innerHeight - 180))}px`;
@@ -389,7 +398,7 @@ function renderShell() {
   if (mode === 'compact') {
     const pill = el('div', 'pill'); pill.classList.toggle('is-hovered',nativeHovered);hoverPill=nativeHovered;pill.addEventListener('contextmenu', contextMenu);
     wireCompactDrag(pill);
-    ticker = el('div', 'ticker'); ticker.role = 'button'; ticker.tabIndex = 0; ticker.setAttribute('aria-label', '展开快讯');
+    ticker = el('div', 'ticker'); ticker.role = 'button'; ticker.tabIndex = 0; localizedAttr(ticker, 'aria-label', () => t("展开快讯"));
     tickerTrack=el('div','ticker-track');tickerCopy = el('span', 'ticker-copy');tickerUpcoming=el('span','ticker-upcoming');tickerUpcoming.setAttribute('aria-hidden','true');tickerTrack.append(tickerCopy,tickerUpcoming);ticker.append(tickerTrack);marquee=new Marquee(tickerTrack);
     pill.addEventListener('click', event => {
       if((event.target as Element).closest('button,.resize-handle'))return;
@@ -411,48 +420,48 @@ function renderShell() {
     }, { passive: false });
     pill.addEventListener('mouseenter', () => { hoverPill = true; pill.classList.add('is-hovered');measureTicker(); });
     pill.addEventListener('mouseleave', () => { hoverPill = false; pagePauseUntil=0; pill.classList.remove('is-hovered');measureTicker(); });
-    const previous = button('上一条', () => manualPage(-1), 'ticker-previous', 'chevronLeft');
-    const next = button('下一条', manualNext, 'ticker-next', 'chevronRight');
+    const previous = button(() => t("上一条"), () => manualPage(-1), 'ticker-previous', 'chevronLeft');
+    const next = button(() => t("下一条"), manualNext, 'ticker-next', 'chevronRight');
     pill.append(ticker, previous, next); addResizeHandles(pill,true); root.append(pill); tickerID = ''; tickerIndex = 0; updateView(); return;
   }
   const panel = el('section', `panel ${mode}`);
   const header = el('header', 'panel-header'); wireDrag(header);
-  header.append(el('span', 'brand', mode === 'settings' ? '设置' : appName));
-  if (!native) header.append(el('span', 'preview-tag', '预览'));
+  header.append(el('span', 'brand', () => mode === 'settings' ? t("设置") : appName));
+  if (!native) header.append(el('span', 'preview-tag', () => t("预览")));
   header.append(el('span', 'spacer'));
   if (mode !== 'settings') {
-    const pin = button('窗口置顶', () => void setPinned(!state.preferences.pinned), 'icon-button pin-toggle', 'pin'); pin.dataset.pinToggle = '';
+    const pin = button(() => t("窗口置顶"), () => void setPinned(!state.preferences.pinned), 'icon-button pin-toggle', 'pin'); pin.dataset.pinToggle = '';
     const menu = el('details', 'reader-menu');
-    const trigger = el('summary', 'icon-button'); trigger.innerHTML = icon('more'); trigger.title = '更多'; trigger.setAttribute('aria-label', '更多');
+    const trigger = el('summary', 'icon-button'); trigger.innerHTML = icon('more'); localizedAttr(trigger, 'title', () => t("更多")); localizedAttr(trigger, 'aria-label', () => t("更多"));
     const actions = el('div', 'reader-menu-actions');
-    const refreshButton = button('立即刷新', () => { closeMenus(); void refresh(); }, 'refresh-control');
-    actions.append(refreshButton, button(paused ? '继续更新' : '暂停更新', () => { closeMenus(); togglePause(); }, 'update-toggle'));
+    const refreshButton = button(() => t("立即刷新"), () => { closeMenus(); void refresh(); }, 'refresh-control');
+    actions.append(refreshButton, button(() => paused ? t("继续更新") : t("暂停更新"), () => { closeMenus(); togglePause(); }, 'update-toggle'));
     wireMenu(menu);menu.append(trigger, actions);
-    header.append(pin, menu, button('设置', () => void setMode('settings'), 'icon-button', 'settings'));
+    header.append(pin, menu, button(() => t("设置"), () => void setMode('settings'), 'icon-button', 'settings'));
   }
   const aiControl=button(aiMenuLabel(),aiMenuAction,'ai-control');aiControl.dataset.aiControl='';header.append(aiControl);
-  header.append(button('收起', () => void setMode('compact'), 'collapse')); panel.append(header);
+  header.append(button(() => t("收起"), () => void setMode('compact'), 'collapse')); panel.append(header);
   if (mode === 'settings') { renderSettings(panel); addResizeHandles(panel,false); root.append(panel);renderStatus(); return; }
   if (mode === 'feed'||mode==='glance') {
     const tools = el('details', 'reading-tools'); tools.open = readingToolsOpen || !!search || !!selectedSource;
-    const summary = el('summary', 'reading-tools-summary'); summary.innerHTML = icon('search'); summary.append(el('span', 'reading-tools-label', '搜索与来源'));
+    const summary = el('summary', 'reading-tools-summary'); summary.innerHTML = icon('search'); summary.append(el('span', 'reading-tools-label', () => t("搜索与来源")));
     tools.append(summary); tools.addEventListener('toggle', () => { readingToolsOpen = tools.open; });
     const controls = el('div', 'controls'), chips = el('div', 'source-chips');
-    chips.setAttribute('role', 'group'); chips.setAttribute('aria-label', '筛选消息来源');
+    chips.setAttribute('role', 'group'); localizedAttr(chips, 'aria-label', () => t("筛选消息来源"));
     for (const source of [undefined, ...state.preferences.sources]) {
-      const chip = button(source ? sourceName(source,state.preferences) : '全部', () => {
+      const chip = button(() => source ? sourceName(source,state.preferences) : t("全部"), () => {
         selectedSource = source;visibleStart=0; visibleCount=40;follow.resume(); updateView();
         chips.querySelectorAll('button').forEach(node => { node.classList.toggle('active', node === chip); node.setAttribute('aria-pressed', String(node === chip)); });
         if (scroller) scroller.scrollTop = 0;
       }, `chip ${selectedSource === source ? 'active' : ''}`); chip.setAttribute('aria-pressed', String(selectedSource === source)); chips.append(chip);
     }
     const searchWrap = el('div', 'search-wrap'); searchWrap.innerHTML = icon('search');
-    const input = el('input', 'search-input'); input.type = 'search'; input.placeholder = '搜索快讯'; input.setAttribute('aria-label', '搜索快讯'); input.value = search; input.autocomplete = 'off'; input.spellcheck = false;
+    const input = el('input', 'search-input'); input.type = 'search'; localizedAttr(input, 'placeholder', () => t("搜索快讯")); localizedAttr(input, 'aria-label', () => t("搜索快讯")); input.value = search; input.autocomplete = 'off'; input.spellcheck = false;
     input.addEventListener('input', () => applySearch(input.value));
-    const clear = button('清除搜索', () => { applySearch(''); input.focus(); }, 'search-clear', 'close'); clear.hidden = !search;
-    searchWrap.append(input, clear, el('span', 'filter-label', modeInfo().label)); controls.append(searchWrap, chips); tools.append(controls); panel.append(tools);
+    const clear = button(() => t("清除搜索"), () => { applySearch(''); input.focus(); }, 'search-clear', 'close'); clear.hidden = !search;
+    searchWrap.append(input, clear, el('span', 'filter-label', () => t(modeInfo().label))); controls.append(searchWrap, chips); tools.append(controls); panel.append(tools);
   }
-  scroller = el('div', 'news-scroll'); scroller.tabIndex = 0; scroller.setAttribute('aria-label', '完整快讯列表');
+  scroller = el('div', 'news-scroll'); scroller.tabIndex = 0; localizedAttr(scroller, 'aria-label', () => t("完整快讯列表"));
   list = el('div', 'news-list'); scroller.append(list);
   const manual = () => { follow.manual(performance.now()); autoOffset = scroller!.scrollTop; scheduleStatus(); };
   scroller.addEventListener('wheel', manual, { passive: true }); scroller.addEventListener('touchstart', manual, { passive: true });
@@ -463,8 +472,8 @@ function renderShell() {
   panel.append(scroller);
   diagnostics = el('div', 'diagnostics'); diagnostics.id = 'connection-details'; diagnostics.hidden = !diagnosticsOpen; panel.append(diagnostics);
   const footer = el('footer', 'footer');
-  followButton = button('回到最新', resumeFollow, 'follow-button');
-  statusButton = button('连接详情', () => { diagnosticsOpen = !diagnosticsOpen; renderStatus(); }, 'status-button');
+  followButton = button(() => t("回到最新"), resumeFollow, 'follow-button');
+  statusButton = button(() => t("连接详情"), () => { diagnosticsOpen = !diagnosticsOpen; renderStatus(); }, 'status-button');
   statusButton.setAttribute('aria-controls', 'connection-details');
   footer.append(followButton, el('span', 'spacer'), statusButton);
 
@@ -483,7 +492,7 @@ function resumeFollow() {
   if (scroller) { scroller.scrollTop = 0; autoOffset = 0; }
   renderStatus();
 }
-function formatTime(value: number): string { return new Date(value).toLocaleTimeString('zh-CN', { hour12: false }); }
+function formatTime(value: number): string { return new Date(value).toLocaleTimeString(uiLocale(), { hour12: false }); }
 function row(group: NewsGroup): HTMLElement {
   const mode = modeInfo(), matches = group.members.flatMap(i => keywordMatches(i, state.preferences));
   const judgement = group.members.map(i => currentJudgement(i, state.preferences)).filter((j): j is Judgement => !!j && (j.kind === 'json' ? j.relevant === true : j.probability >= state.preferences.threshold)).sort((a,b) => b.probability-a.probability)[0];
@@ -493,21 +502,21 @@ function row(group: NewsGroup): HTMLElement {
   const latestItem = group.members.find(item => item.publishedAt === group.latestDate) ?? group.item;
   const time = el('time', 'row-time', formatTime(group.latestDate));
   time.dateTime = new Date(group.latestDate).toISOString();
-  time.title = `${latestItem.dateEstimated ? '首次获取时间（来源未提供发布时间）' : '发布时间'} · ${new Date(group.latestDate).toLocaleString('zh-CN')}`;
+  localizedAttr(time, 'title', () => `${latestItem.dateEstimated ? t("首次获取时间（来源未提供发布时间）") : t("发布时间")} · ${new Date(group.latestDate).toLocaleString(uiLocale())}`);
   meta.append(time, el('span', 'row-source', [...new Set(group.members.map(i => i.source))].map(s => sourceName(s,state.preferences)).join(' · ')));
-  if (latestItem.dateEstimated) meta.append(el('span', 'estimated-time', '首次获取'));
-  if (new Date(group.latestDate).toDateString() !== new Date().toDateString()) meta.append(el('span', '', new Date(group.latestDate).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })));
+  if (latestItem.dateEstimated) meta.append(el('span', 'estimated-time', () => t("首次获取")));
+  if (new Date(group.latestDate).toDateString() !== new Date().toDateString()) meta.append(el('span', '', new Date(group.latestDate).toLocaleDateString(uiLocale(), { month: 'numeric', day: 'numeric' })));
   if (matches.length) meta.append(el('span', 'badge', [...new Set(matches)].slice(0, 2).join(' · ')));
-  if (judgement) { const badge=el('span','badge ai-match',judgement.kind === 'json' ? 'AI 关注' : `JEV ${Math.round(judgement.probability*100)}%`); badge.title=judgement.reason || 'JEV 判断的相关概率，表示与关注条件的匹配程度'; meta.append(badge); }
-  if (mode.active && group.members.some(i => state.unread.some(u => u.id === i.id))) meta.append(button('标为已读', () => { acknowledge(state, group); void persist(); updateView(); }, 'read-button'));
-  if (group.item.url) meta.append(button('打开原文', () => void bridge.open(group.item.url).catch(notifyError), 'row-open', 'arrow'));
+  if (judgement) { const badge=el('span','badge ai-match',() => judgement.kind === 'json' ? t("AI 关注") : `JEV ${Math.round(judgement.probability*100)}%`); localizedAttr(badge, 'title', () => judgement.reason || t("JEV 判断的相关概率，表示与关注条件的匹配程度")); meta.append(badge); }
+  if (mode.active && group.members.some(i => state.unread.some(u => u.id === i.id))) meta.append(button(() => t("标为已读"), () => { acknowledge(state, group); void persist(); updateView(); }, 'read-button'));
+  if (group.item.url) meta.append(button(() => t("打开原文"), () => void bridge.open(group.item.url).catch(notifyError), 'row-open', 'arrow'));
   const body = el('p', 'news-body'); body.id = `story-${encodeURIComponent(group.id)}`;
   const fullText = text(group.item);
   // Emphasize only a headline actually supplied by the source; never invent a summary.
   const headline = group.item.title && fullText.startsWith(group.item.title) ? group.item.title : /^【[^】]+】/u.exec(fullText)?.[0];
   if (headline && fullText.length > headline.length) body.append(el('strong', 'news-headline', headline), document.createTextNode(fullText.slice(headline.length)));
   else body.textContent = fullText;
-  const toggle = button('展开全文', () => {
+  const toggle = button(() => t("展开全文"), () => {
     if (expandedStories.has(group.id)) expandedStories.delete(group.id); else expandedStories.add(group.id);
     updateStoryPreview(article);
     // Collapsing a long item keeps its preview in reach instead of stranding the viewport below it.
@@ -516,17 +525,17 @@ function row(group: NewsGroup): HTMLElement {
   toggle.setAttribute('aria-controls', body.id);
   article.append(meta, body, toggle);
   const tags=[...new Set(group.members.flatMap(i=>i.tags??[]))];
-  if(tags.length){const line=el('div','news-tags');line.setAttribute('aria-label','新闻标签');for(const tag of tags){const chip=el('span','source-tag',tag);chip.title='来源提供的新闻标签';line.append(chip);}article.append(line);}
+  if(tags.length){const line=el('div','news-tags');localizedAttr(line, 'aria-label', () => t("新闻标签"));for(const tag of tags){const chip=el('span','source-tag',tag);localizedAttr(chip, 'title', () => t("来源提供的新闻标签"));line.append(chip);}article.append(line);}
   if (group.members.length > 1 || judgement?.reason || judgement?.tags?.length) {
     const detail = el('details', 'story-details'); detail.open = openStoryDetails.has(group.id);
-    const label = [group.members.length > 1 ? `${group.members.length} 条合并原文` : '', judgement ? '关注依据' : ''].filter(Boolean).join(' · ');
+    const label = [group.members.length > 1 ? t("{0} 条合并原文", group.members.length) : '', judgement ? t("关注依据") : ''].filter(Boolean).join(' · ');
     detail.append(el('summary', '', label));
     detail.addEventListener('toggle', () => { if (detail.open) openStoryDetails.add(group.id); else openStoryDetails.delete(group.id); });
     if(judgement?.reason) detail.append(el('p', 'ai-reason', judgement.reason));
-    if(judgement?.tags?.length){const line=el('div','news-tags ai-tags');line.setAttribute('aria-label','AI 标签');for(const tag of judgement.tags)line.append(el('span','source-tag',`AI · ${tag}`));detail.append(line);}
+    if(judgement?.tags?.length){const line=el('div','news-tags ai-tags');localizedAttr(line, 'aria-label', () => t("AI 标签"));for(const tag of judgement.tags)line.append(el('span','source-tag',`AI · ${tag}`));detail.append(line);}
     if (group.members.length > 1) for (const item of group.members) {
       const origin = el('div', 'related');
-      const attribution = `${sourceName(item.source,state.preferences)} · ${new Date(item.publishedAt).toLocaleString('zh-CN')}${item.dateEstimated ? '（首次获取）' : ''}`;
+      const attribution = `${sourceName(item.source,state.preferences)} · ${new Date(item.publishedAt).toLocaleString(uiLocale())}${item.dateEstimated ? t("（首次获取）") : ''}`;
       origin.append(item.url ? button(attribution, () => void bridge.open(item.url).catch(notifyError), '') : el('span', '', attribution), el('p', '', text(item)));
       detail.append(origin);
     }
@@ -545,7 +554,7 @@ function prepareStory(article:HTMLElement){
 }
 function previewControl({toggle,expanded}:ReturnType<typeof prepareStory>,overflow:boolean){
   if(toggle.hidden===overflow)toggle.hidden=!overflow;
-  const label=expanded?'收起全文':'展开全文';
+  const label=expanded?t("收起全文"):t("展开全文");
   if(toggle.textContent!==label){toggle.textContent=label;toggle.title=label;toggle.setAttribute('aria-label',label);}
   toggle.setAttribute('aria-expanded',String(expanded));
 }
@@ -621,18 +630,18 @@ function updateView() {
     if (!groups.length) {
       const empty = el('div', 'empty');
       if (mode === 'feed' && search.trim()) {
-        empty.append(el('p', 'empty-title', '没有找到相关快讯'), el('p', '', '试试其他关键词，或清除搜索查看消息。'), button('清除搜索', () => { applySearch(''); root.querySelector<HTMLInputElement>('.search-input')?.focus(); }, 'empty-action'));
+        empty.append(el('p', 'empty-title', () => t("没有找到相关快讯")), el('p', '', () => t("试试其他关键词，或清除搜索查看消息。")), button(() => t("清除搜索"), () => { applySearch(''); root.querySelector<HTMLInputElement>('.search-input')?.focus(); }, 'empty-action'));
       } else if (mode === 'feed' && selectedSource) {
-        empty.append(el('p', 'empty-title', '此来源暂无快讯'), el('p', '', '可以切换其他来源，或等待下一次更新。'));
+        empty.append(el('p', 'empty-title', () => t("此来源暂无快讯")), el('p', '', () => t("可以切换其他来源，或等待下一次更新。")));
       } else if (!state.preferences.sources.length) {
-        empty.append(el('p','empty-title','还没有启用新闻来源'),el('p','','在设置中添加并开启新闻来源，即可开始阅读。'),button('添加来源',()=>void setMode('settings'),'empty-action'));
+        empty.append(el('p','empty-title',() => t("还没有启用新闻来源")),el('p','',() => t("在设置中添加并开启新闻来源，即可开始阅读。")),button(() => t("添加来源"),()=>void setMode('settings'),'empty-action'));
       } else {
-        empty.append(el('p', 'empty-title', refreshing ? '正在连接财经快讯…' : '等待新快讯'), el('p', '', '连接异常时会保留缓存并自动重试。'));
+        empty.append(el('p', 'empty-title', () => refreshing ? t("正在连接财经快讯…") : t("等待新快讯")), el('p', '', () => t("连接异常时会保留缓存并自动重试。")));
       }
       list.append(empty);
     }
-    if(visibleStart>0)list.prepend(button('查看更新的新闻',()=>{const count=Math.min(40,visibleStart);visibleStart-=count;visibleCount+=count;updateView();},'load-older load-newer'));
-    if(visibleStart+shown.length<groups.length)list.append(button('查看更早的新闻',loadOlder,'load-older'));
+    if(visibleStart>0)list.prepend(button(() => t("查看更新的新闻"),()=>{const count=Math.min(40,visibleStart);visibleStart-=count;visibleCount+=count;updateView();},'load-older load-newer'));
+    if(visibleStart+shown.length<groups.length)list.append(button(() => t("查看更早的新闻"),loadOlder,'load-older'));
     updatePreviews();
     // Expanded views stay still. Only an actual new/corrected latest story
     // brings the view to the top; time passing never scrolls into history.
@@ -687,7 +696,7 @@ function updateTicker(now: number, continuous=false, selected?:NewsGroup) {
   if(changed){
     tickerCurrent=group;tickerRecorded=false;tickerID=id;
     paintTicker(tickerCopy,group);
-    if(!group)tickerCopy.textContent=!state.preferences.sources.length?'点击添加新闻来源':paused?'已暂停更新':refreshing?'正在连接…':'等待新快讯';
+    if(!group)localizedText(tickerCopy, () => !state.preferences.sources.length?t("点击添加新闻来源"):paused?t("已暂停更新"):refreshing?t("正在连接…"):t("等待新快讯"));
     ticker.title=tickerCopy.textContent??'';marquee?.jump(0);autoOffset=0;tickerPhase=continuous?'moving':'start';holdUntil=now+2200;
   }
   prepareTickerNext();
@@ -696,26 +705,25 @@ function updateTicker(now: number, continuous=false, selected?:NewsGroup) {
     else{tickerPhase='end';holdUntil=now+4200;}
   }
 }
-function buttonLabel(node:HTMLButtonElement,label:string){
-  if(node.textContent!==label)node.textContent=label;
-  node.title=label;node.setAttribute('aria-label',label);
+function buttonLabel(node:HTMLButtonElement,label:Label){
+  localizedText(node,label);localizedAttr(node,'title',label);localizedAttr(node,'aria-label',label);
 }
 function renderStatus() {
   const errors = issues(), failed = errors.length > 0;
-  for(const control of root.querySelectorAll<HTMLButtonElement>('.update-toggle'))buttonLabel(control,paused?'继续更新':'暂停更新');
-  for(const control of root.querySelectorAll<HTMLButtonElement>('.refresh-control')){control.disabled=refreshing;buttonLabel(control,refreshing?'刷新中':'立即刷新');}
+  for(const control of root.querySelectorAll<HTMLButtonElement>('.update-toggle'))buttonLabel(control,() => paused?t("继续更新"):t("暂停更新"));
+  for(const control of root.querySelectorAll<HTMLButtonElement>('.refresh-control')){control.disabled=refreshing;buttonLabel(control,() => refreshing?t("刷新中"):t("立即刷新"));}
   for(const control of root.querySelectorAll<HTMLButtonElement>('[data-ai-control]')){
     control.hidden=mode==='settings'&&!state.preferences.aiEnabled&&!aiStarting;
     buttonLabel(control,aiMenuLabel());control.classList.toggle('ai-running',state.preferences.aiEnabled&&!state.preferences.aiPaused);
   }
   const aiEnabledInput=root.querySelector<HTMLInputElement>('[data-ai-enabled]');if(aiEnabledInput)aiEnabledInput.checked=(settingsDraft??state.preferences).aiEnabled;
-  const usageLabel=root.querySelector('.ai-usage');if(usageLabel)usageLabel.textContent=`过去 24 小时：提交 ${aiUsage.items} 条新闻 · 发起 ${aiUsage.requests} 次请求（含试判、失败和取消）。`;
-  const safetyControl=root.querySelector<HTMLButtonElement>('.ai-safety-control');if(safetyControl){buttonLabel(safetyControl,state.preferences.aiPaused?'继续 AI 判断':'立即停止 AI');safetyControl.classList.toggle('ai-running',!state.preferences.aiPaused);}
+  const usageLabel=root.querySelector('.ai-usage');if(usageLabel)localizedText(usageLabel, () => t("过去 24 小时：提交 {0} 条新闻 · 发起 {1} 次请求（含试判、失败和取消）。", aiUsage.items, aiUsage.requests));
+  const safetyControl=root.querySelector<HTMLButtonElement>('.ai-safety-control');if(safetyControl){buttonLabel(safetyControl,() => state.preferences.aiPaused?t("继续 AI 判断"):t("立即停止 AI"));safetyControl.classList.toggle('ai-running',!state.preferences.aiPaused);}
   for(const control of root.querySelectorAll<HTMLButtonElement>('.ticker-next,.ticker-previous'))control.disabled=groups.length<2;
   const filterLabel=root.querySelector('.filter-label');
-  if(filterLabel){const mode=modeInfo(),cached=groups.some(g=>g.members.some(i=>{const j=currentJudgement(i,state.preferences);return j&&(j.kind==='json'?j.relevant===true:j.probability>=state.preferences.threshold);}));const label=!mode.ai&&cached?(mode.keyword?'关键词 · 已有 AI 标记':'已有 AI 标记'):mode.label;if(filterLabel.textContent!==label)filterLabel.textContent=label;}
+  if(filterLabel){const mode=modeInfo(),cached=groups.some(g=>g.members.some(i=>{const j=currentJudgement(i,state.preferences);return j&&(j.kind==='json'?j.relevant===true:j.probability>=state.preferences.threshold);}));const label=!mode.ai&&cached?(mode.keyword?t("关键词 · 已有 AI 标记"):t("已有 AI 标记")):t(mode.label);if(filterLabel.textContent!==label)filterLabel.textContent=label;}
   const toolsLabel = root.querySelector('.reading-tools-label');
-  if (toolsLabel) toolsLabel.textContent = [search ? `搜索：${search}` : '', selectedSource ? sourceName(selectedSource,state.preferences) : ''].filter(Boolean).join(' · ') || '搜索与来源';
+  if (toolsLabel) localizedText(toolsLabel, () => [search ? t("搜索：{0}", search) : '', selectedSource ? sourceName(selectedSource,state.preferences) : ''].filter(Boolean).join(' · ') || t("搜索与来源"));
   const refreshControl = root.querySelector<HTMLButtonElement>('.refresh-control');
   if (refreshControl) { refreshControl.disabled = refreshing || paused; refreshControl.classList.toggle('is-refreshing', refreshing); refreshControl.setAttribute('aria-busy', String(refreshing)); }
   root.querySelector('.panel')?.classList.toggle('is-paused', paused);
@@ -723,21 +731,21 @@ function renderStatus() {
   if (followButton) {
     const browsing = (scroller?.scrollTop ?? 0) > 3;
     followButton.className = `follow-button ${browsing ? 'browsing' : state.preferences.autoScroll ? 'following' : ''}`;
-    const label = paused ? '已暂停更新' : browsing ? '阅读历史 · 回到最新' : state.preferences.autoScroll ? '跟随最新' : '回到最新';
-    if(followButton.dataset.label!==label){followButton.dataset.label=label;followButton.innerHTML = icon('follow'); followButton.append(document.createTextNode(label));}
+    const label = paused ? t("已暂停更新") : browsing ? t("阅读历史 · 回到最新") : state.preferences.autoScroll ? t("跟随最新") : t("回到最新");
+    if(followButton.dataset.label!==label){followButton.dataset.label=label;followButton.innerHTML = icon('follow'); followButton.append(localizedNode(label));}
   }
   if (statusButton) {
     statusButton.setAttribute('aria-expanded', String(diagnosticsOpen));
     statusButton.className = failed ? 'status-button' : 'status-button status-ok';
     const lastSuccess = Math.max(0, ...[...feedStates.values()].map(s => s.success ?? 0));
-    statusButton.textContent = failed ? `${errors.length} 项连接提示` : paused ? '已暂停' : analysisQueue.waitUntil>Date.now()&&!state.preferences.aiPaused ? 'AI 等待下一批' : judging ? 'AI 判断中' : refreshing ? '更新中…' : lastSuccess ? `更新 ${formatTime(lastSuccess)}` : native ? '连接中…' : '示例数据';
-    statusButton.title = diagnosticsOpen ? '收起连接详情' : failed ? '查看连接问题与重试状态' : lastSuccess ? `最近更新 ${formatTime(lastSuccess)} · 查看连接详情` : '查看连接详情';
+    localizedText(statusButton, () => failed ? t("{0} 项连接提示", errors.length) : paused ? t("已暂停") : analysisQueue.waitUntil>Date.now()&&!state.preferences.aiPaused ? t("AI 等待下一批") : judging ? t("AI 判断中") : refreshing ? t("更新中…") : lastSuccess ? t("更新 {0}", formatTime(lastSuccess)) : native ? t("连接中…") : t("示例数据"));
+    localizedAttr(statusButton, 'title', () => diagnosticsOpen ? t("收起连接详情") : failed ? t("查看连接问题与重试状态") : lastSuccess ? t("最近更新 {0} · 查看连接详情", formatTime(lastSuccess)) : t("查看连接详情"));
   }
   if (diagnostics) {
     diagnostics.hidden = !diagnosticsOpen;
-    const successes = allSources(state.preferences).filter(s => state.preferences.sources.includes(s)).map(s => { const status = feedStates.get(s); return `${sourceName(s,state.preferences)}：${status?.error ?? (status?.success ? `${status.count} 条 · ${formatTime(status.success)}${status.warning?` · ${status.warning}`:''}` : '等待连接')}`; });
-    diagnostics.textContent = [...successes, ...((aiError||aiBatchError) ? [`AI：${aiError||aiBatchError}（待处理保留，不会隐藏新闻）`] : []), ...(state.preferences.aiEnabled?[state.preferences.aiPaused?'AI 已停止；已有标记保留':quotaBlocked?'AI 已达到保护上限，新的判断已暂停':analysisQueue.waitUntil>Date.now()?'AI 按频率等待下一批，将自动继续':judging?'AI 正在后台判断':'AI 等待符合时间范围的新新闻',...(analysisClient.skippedLong?[`${analysisClient.skippedLong} 条新闻超过单次文字范围，保留原文，未发送 AI`]:[])]:[]),...(storageError ? [storageError] : []), '来源连接失败时保留缓存并自动重试。'].join('\n');
-    if(aiError||aiBatchError)diagnostics.append(button('重试待处理 AI',retryAI,'text-action'));
+    const successes = allSources(state.preferences).filter(s => state.preferences.sources.includes(s)).map(s => { const status = feedStates.get(s); return `${sourceName(s,state.preferences)}：${(status?.error ? localizeMessage(status.error) : undefined) ?? (status?.success ? t("{0} 条 · {1}{2}", status.count, formatTime(status.success), status.warning?` · ${status.warning}`:'') : t("等待连接"))}`; });
+    localizedText(diagnostics, () => [...successes, ...((aiError||aiBatchError) ? [t("AI：{0}（待处理保留，不会隐藏新闻）", localizeMessage((aiError||aiBatchError)??''))] : []), ...(state.preferences.aiEnabled?[state.preferences.aiPaused?t("AI 已停止；已有标记保留"):quotaBlocked?t("AI 已达到保护上限，新的判断已暂停"):analysisQueue.waitUntil>Date.now()?t("AI 按频率等待下一批，将自动继续"):judging?t("AI 正在后台判断"):t("AI 等待符合时间范围的新新闻"),...(analysisClient.skippedLong?[t("{0} 条新闻超过单次文字范围，保留原文，未发送 AI", analysisClient.skippedLong)]:[])]:[]),...(storageError ? [localizeMessage(storageError)] : []), t("来源连接失败时保留缓存并自动重试。")].join('\n'));
+    if(aiError||aiBatchError)diagnostics.append(button(() => t("重试待处理 AI"),retryAI,'text-action'));
   }
 }
 function tick(now:number){
@@ -765,7 +773,7 @@ function ingest(results: FeedResult[]) {
     if(!state.preferences.sources.includes(result.source))continue;
     const old = feedStates.get(result.source);
     try {
-      if (result.error || result.text == null) throw new Error(result.error || '未返回数据');
+      if (result.error || result.text == null) throw new Error(result.error || t("未返回数据"));
       const items = parseFeed(result.source, result.text!); syncAnalysisPending(state,items);state.items = merge(state.items, items);
       feedStates.set(result.source, { success: result.fetchedAt * 1000, count: items.length,warning:result.warning??undefined });
     } catch (error) { feedStates.set(result.source, { ...old, count: old?.count ?? 0, error: error instanceof Error ? error.message : String(error) }); }
@@ -775,7 +783,7 @@ function ingest(results: FeedResult[]) {
 async function refresh() {
   if (refreshing) return;
   refreshing = true; renderStatus();
-  try { ingest(await bridge.refresh()); } catch { for (const source of state.preferences.sources) feedStates.set(source, { count: 0, error: '暂时无法连接，稍后自动重试' }); }
+  try { ingest(await bridge.refresh()); } catch { for (const source of state.preferences.sources) feedStates.set(source, { count: 0, error: t("暂时无法连接，稍后自动重试") }); }
   finally { refreshing = false; updateView(); }
 }
 function togglePause() { paused = !paused;void bridge.pause(paused);if(paused)marquee?.pauseVisual();else{void refresh();void screenNews();}updateView(); }
@@ -784,22 +792,22 @@ function screenNews(){if(quotaBlocked&&aiUsage.resetAt&&Date.now()>=aiUsage.rese
 function renderSettings(panel: HTMLElement) {
   const prefs: Preferences = structuredClone(state.preferences), scroll = el('form', 'settings-scroll');
   settingsDraft=prefs;
-  const section = (title: string) => { const node = el('section', 'settings-section'); node.append(el('h2', 'settings-title', title)); scroll.append(node); return node; };
-  function checkbox(parent: HTMLElement, label: string, checked: boolean, change: (value: boolean) => void) {
-    const line = el('div', 'setting-line'), wrap = el('label'), input = el('input'); input.type = 'checkbox'; input.checked = checked; input.addEventListener('change', () => change(input.checked)); wrap.append(input, document.createTextNode(label)); line.append(wrap); parent.append(line); return input;
+  const section = (title: Label) => { const node = el('section', 'settings-section'); node.append(el('h2', 'settings-title', title)); scroll.append(node); return node; };
+  function checkbox(parent: HTMLElement, label: Label, checked: boolean, change: (value: boolean) => void) {
+    const line = el('div', 'setting-line'), wrap = el('label'), input = el('input'); input.type = 'checkbox'; input.checked = checked; input.addEventListener('change', () => change(input.checked)); wrap.append(input, localizedNode(label)); line.append(wrap); parent.append(line); return input;
   }
-  function field(parent: HTMLElement, label: string, value: string, change: (value: string) => void, multiline = false) {
+  function field(parent: HTMLElement, label: Label, value: string, change: (value: string) => void, multiline = false) {
     const wrapper = el('label', 'field-label', label), input = multiline ? el('textarea', 'field') : el('input', 'field'); input.value = value; input.addEventListener('input', () => change(input.value)); wrapper.append(input); parent.append(wrapper); return input;
   }
-  function select(parent: HTMLElement, label: string, options: [string, string][], value: string, change: (value: string) => void) {
-    const line = el('label', 'setting-line', label), input = el('select'); input.setAttribute('aria-label',label); for (const [v, name] of options) { const option = el('option', '', name); option.value = v; input.append(option); } input.value = value; input.addEventListener('change', () => change(input.value)); line.append(input); parent.append(line); return input;
+  function select(parent: HTMLElement, label: Label, options: [string, Label][], value: string, change: (value: string) => void) {
+    const line = el('label', 'setting-line', label), input = el('select'); localizedAttr(input,'aria-label',label); for (const [v, name] of options) { const option = el('option', '', name); option.value = v; input.append(option); } input.value = value; input.addEventListener('change', () => change(input.value)); line.append(input); parent.append(line); return input;
   }
-  const feeds = section('新闻来源'), sourceOptions = el('div', 'installed-channels'); sourceOptions.setAttribute('aria-label','已安装来源'); feeds.append(sourceOptions);
-  select(feeds, '更新间隔', [['30','30 秒'],['60','60 秒'],['120','2 分钟']], String(prefs.interval), v => { prefs.interval = Number(v); });
+  const feeds = section(() => t("新闻来源")), sourceOptions = el('div', 'installed-channels'); localizedAttr(sourceOptions, 'aria-label', () => t("已安装来源")); feeds.append(sourceOptions);
+  select(feeds, () => t("更新间隔"), [['30', () => t("30 秒")], ['60', () => t("60 秒")], ['120', () => t("2 分钟")]], String(prefs.interval), v => { prefs.interval = Number(v); });
   const sourceKeyEdits=new Map<string,string>();const adapterErrors=new Map<string,string>();const expandedConfigs=new Set<string>();
-  const custom=el('details','settings-disclosure custom-sources');custom.append(el('summary','','添加新闻来源'));feeds.append(custom);
-  const available=el('div','available-channels');available.setAttribute('aria-label','可安装来源');custom.append(available);
-  custom.append(el('p','hint','添加订阅地址，或选择开发者提供的来源文件。卸载的来源也可以在这里装回。'));
+  const custom=el('details','settings-disclosure custom-sources');custom.append(el('summary','',() => t("添加新闻来源")));feeds.append(custom);
+  const available=el('div','available-channels');localizedAttr(available, 'aria-label', () => t("可安装来源"));custom.append(available);
+  custom.append(el('p','hint',() => t("添加订阅地址，或选择开发者提供的来源文件。卸载的来源也可以在这里装回。")));
   const editors=sourceOptions;
   function renderSourceEditors(){
     editors.replaceChildren();
@@ -807,29 +815,29 @@ function renderSettings(panel: HTMLElement) {
     for(const id of catalogSources(prefs)){
       const source=channelSource(id,prefs), name=sourceName(id,prefs);
       const executable=source?.format==='plugin';
-      const group=el('section',`source-entry ${executable?'plugin-source':source?'custom-source':'builtin-source'}`);group.dataset.sourceId=id;group.setAttribute('aria-label',executable?`${name}来源`:source?'自定义来源':`${name}来源`);
-      const kind=['cls','wallstreet','jin10'].includes(id)?'内置':'自定义';
+      const group=el('section',`source-entry ${executable?'plugin-source':source?'custom-source':'builtin-source'}`);group.dataset.sourceId=id;localizedAttr(group, 'aria-label', () => executable?t("{0}来源", name):source?t("自定义来源"):t("{0}来源", name));
+      const kind=()=>['cls','wallstreet','jin10'].includes(id)?t("内置"):t("自定义");
       const line=el('div','channel-line');group.append(line);
       if(!isInstalled(prefs,id)){
-        const caption=el('div','channel-caption');caption.append(el('span','channel-name',name),el('span','channel-kind',kind));const install=button(`安装${name}`,()=>{installChannel(prefs,id);renderSourceEditors();},'channel-install');install.textContent='安装';line.append(caption,install);
+        const caption=el('div','channel-caption');caption.append(el('span','channel-name',name),el('span','channel-kind',kind));const install=button(() => t("安装{0}", name),()=>{installChannel(prefs,id);renderSourceEditors();},'channel-install');localizedText(install, () => t("安装"));line.append(caption,install);
         available.append(group);continue;
       }
       editors.append(group);
-      const toggle=checkbox(line,name||'新来源',prefs.sources.includes(id),enabled=>enableChannel(prefs,id,enabled));
+      const toggle=checkbox(line,() => name||t("新来源"),prefs.sources.includes(id),enabled=>enableChannel(prefs,id,enabled));
       const label=toggle.parentElement!;const nameNode=label.lastChild!;
-      const remove=button(`卸载${name||'新来源'}`,()=>{
+      const remove=button(() => t("卸载{0}", name||t("新来源")),()=>{
         if(source){
           const invalid=validateSources({...prefs,customSources:[source],sources:[],uninstalledSources:[]});
           if(invalid){const original=state.preferences.customSources.find(item=>item.id===id);if(original)Object.assign(source,structuredClone(original));else{prefs.customSources=prefs.customSources.filter(item=>item.id!==id);prefs.sources=prefs.sources.filter(item=>item!==id);sourceKeyEdits.delete(id);adapterErrors.delete(id);renderSourceEditors();return;}}
         }
         uninstallChannel(prefs,id);sourceKeyEdits.delete(id);adapterErrors.delete(id);renderSourceEditors();custom.open=true;
       },'channel-uninstall');
-      remove.textContent='卸载';line.append(el('span','channel-kind',kind),remove);
+      localizedText(remove, () => t("卸载"));line.append(el('span','channel-kind',kind),remove);
       if(!source)continue;
-      const editor=el('details','source-editor');editor.open=expandedConfigs.has(id)||!source.url;editor.addEventListener('toggle',()=>{if(editor.open)expandedConfigs.add(id);else expandedConfigs.delete(id);});const summary=el('summary','',executable&&!source.plugin!.manifest.config.length&&!source.plugin!.manifest.auth?'详情':'配置');editor.append(summary);group.append(editor);
+      const editor=el('details','source-editor');editor.open=expandedConfigs.has(id)||!source.url;editor.addEventListener('toggle',()=>{if(editor.open)expandedConfigs.add(id);else expandedConfigs.delete(id);});const summary=el('summary','',() => executable&&!source.plugin!.manifest.config.length&&!source.plugin!.manifest.auth?t("详情"):t("配置"));editor.append(summary);group.append(editor);
       if(source.plugin){
         const manifest=source.plugin.manifest;
-        editor.append(el('p','hint',`版本 ${manifest.version} · 可访问 ${manifest.network.join('、')}`));
+        editor.append(el('p','hint',() => t("版本 {0} · 可访问 {1}", manifest.version, manifest.network.join('、'))));
         const retain=()=>{if(!prefs.customSources.some(s=>s.id===id))prefs.customSources.push(source);};
         for(const parameter of manifest.config){
           const value=source.parameters?.[parameter.key]??parameter.default;
@@ -839,118 +847,119 @@ function renderSettings(panel: HTMLElement) {
         }
         let secret:HTMLInputElement|undefined;
         if(manifest.auth){
-          secret=field(editor,'来源 Key',sourceKeyEdits.get(id)??'',value=>{retain();sourceKeyEdits.set(id,value);}) as HTMLInputElement;secret.type='password';secret.autocomplete='new-password';secret.placeholder='留空保持已保存的 Key';
-          editor.append(button('删除来源已存 Key',()=>{retain();sourceKeyEdits.set(id,'');secret!.value='';secret!.placeholder='保存设置后删除 Key';},'text-action'));
+          secret=field(editor,() => t("来源 Key"),sourceKeyEdits.get(id)??'',value=>{retain();sourceKeyEdits.set(id,value);}) as HTMLInputElement;secret.type='password';secret.autocomplete='new-password';localizedAttr(secret, 'placeholder', () => t("留空保持已保存的 Key"));
+          editor.append(button(() => t("删除来源已存 Key"),()=>{retain();sourceKeyEdits.set(id,'');secret!.value='';localizedAttr(secret!, 'placeholder', () => t("保存设置后删除 Key"));},'text-action'));
         }
         const status=el('p','hint connection-test-result');status.setAttribute('role','status');
-        const test=button('测试来源',()=>{void (async()=>{
-          status.textContent='正在执行来源…';test.disabled=true;
-          try{const error=validatePluginSource(source);if(error)throw error;const result=await bridge.testSource(source,sourceKeyEdits.get(id));if(result.error||result.text==null)throw result.error||'未返回数据';const items=parseFeed(id,result.text);status.textContent=`执行成功：${items.length} 条标准新闻。${result.warning??''}`;}
-          catch(error){status.textContent=typeof error==='string'?error:'来源测试未完成';}
+        const test=button(() => t("测试来源"),()=>{void (async()=>{
+          localizedText(status, () => t("正在执行来源…"));test.disabled=true;
+          try{const error=validatePluginSource(source);if(error)throw error;const result=await bridge.testSource(source,sourceKeyEdits.get(id));if(result.error||result.text==null)throw result.error||t("未返回数据");const items=parseFeed(id,result.text);localizedText(status, () => t("执行成功：{0} 条标准新闻。{1}", items.length, result.warning??''));}
+          catch(error){localizedText(status, () => typeof error==='string'?localizeMessage(error):t("来源测试未完成"));}
           finally{test.disabled=false;}
         })();},'text-action');editor.append(test,status);continue;
       }
-      field(editor,'来源名称',source.name,value=>{source.name=value;nameNode.textContent=value||'新来源';remove.title=`卸载${value||'新来源'}`;remove.setAttribute('aria-label',remove.title);});
-      field(editor,'订阅或接口 URL',source.url,value=>{source.url=value;sourceKeyEdits.delete(source.id);secret.value='';secret.placeholder='地址已更改，留空使用此地址已存 Key';});
-      select(editor,'来源格式',[['auto','自动识别'],['feed','RSS / Atom / JSON Feed'],['json','标准 JSON 接口'],['adapter','本地 JSON 适配器']],source.format??'auto',value=>{source.format=value as CustomSource['format'];rulesField.closest('label')!.hidden=value!=='adapter';});
-      const rulesField=field(editor,'本地适配器规则',source.adapter?JSON.stringify(source.adapter,null,2):'',value=>{try{const rules=JSON.parse(value);const error=validateAdapter(rules);if(error){adapterErrors.set(source.id,error);}else{source.adapter=rules;adapterErrors.delete(source.id);}}catch{adapterErrors.set(source.id,'适配器规则不是合法 JSON');}},true);rulesField.closest('label')!.hidden=source.format!=='adapter';
-      field(editor,'来源分组',source.folder??'',value=>{source.folder=value;});
-      select(editor,'来源鉴权',[['none','无需鉴权'],['bearer','Bearer Key']],source.auth,value=>{source.auth=value as 'none'|'bearer';secret.disabled=value!=='bearer';});
-      const secret=field(editor,'来源 Key',sourceKeyEdits.get(source.id)??'',value=>{sourceKeyEdits.set(source.id,value);}) as HTMLInputElement;
-      secret.type='password';secret.autocomplete='new-password';secret.disabled=source.auth!=='bearer';secret.placeholder=sourceKeyEdits.get(source.id)===''?'保存设置后删除 Key':'留空保持此来源已存 Key';
+      field(editor,() => t("来源名称"),source.name,value=>{source.name=value;localizedText(nameNode, () => value||t("新来源"));localizedAttr(remove, 'title', () => t("卸载{0}", value||t("新来源")));localizedAttr(remove,'aria-label',()=>remove.title);});
+      field(editor,() => t("订阅或接口 URL"),source.url,value=>{source.url=value;sourceKeyEdits.delete(source.id);secret.value='';localizedAttr(secret, 'placeholder', () => t("地址已更改，留空使用此地址已存 Key"));});
+      select(editor,() => t("来源格式"),[['auto', () => t("自动识别")], ['feed', 'RSS / Atom / JSON Feed'], ['json', () => t("标准 JSON 接口")], ['adapter', () => t("本地 JSON 适配器")]],source.format??'auto',value=>{source.format=value as CustomSource['format'];rulesField.closest('label')!.hidden=value!=='adapter';});
+      const rulesField=field(editor,() => t("本地适配器规则"),source.adapter?JSON.stringify(source.adapter,null,2):'',value=>{try{const rules=JSON.parse(value);const error=validateAdapter(rules);if(error){adapterErrors.set(source.id,error);}else{source.adapter=rules;adapterErrors.delete(source.id);}}catch{adapterErrors.set(source.id,t("适配器规则不是合法 JSON"));}},true);rulesField.closest('label')!.hidden=source.format!=='adapter';
+      field(editor,() => t("来源分组"),source.folder??'',value=>{source.folder=value;});
+      select(editor,() => t("来源鉴权"),[['none', () => t("无需鉴权")], ['bearer', 'Bearer Key']],source.auth,value=>{source.auth=value as 'none'|'bearer';secret.disabled=value!=='bearer';});
+      const secret=field(editor,() => t("来源 Key"),sourceKeyEdits.get(source.id)??'',value=>{sourceKeyEdits.set(source.id,value);}) as HTMLInputElement;
+      secret.type='password';secret.autocomplete='new-password';secret.disabled=source.auth!=='bearer';localizedAttr(secret, 'placeholder', () => sourceKeyEdits.get(source.id)===''?t("保存设置后删除 Key"):t("留空保持此来源已存 Key"));
       const status=el('p','hint connection-test-result');status.setAttribute('role','status');
-      const test=button('测试来源',()=>{void runTest();},'text-action');
+      const test=button(() => t("测试来源"),()=>{void runTest();},'text-action');
       const runTest=async()=>{
-        status.textContent='正在读取接口…';test.disabled=true;
-        try {if(source.format==='adapter'&&adapterErrors.has(source.id))throw adapterErrors.get(source.id);if(!source.name.trim()||!validSourceURL(source.url))throw '请先填写来源名称和有效 URL';const result=await bridge.testSource(source,sourceKeyEdits.get(source.id));if(result.error||result.text==null)throw result.error||'未返回数据';const items=parseFeed(source.id,result.text!);status.textContent=`格式正确：读取 ${items.length} 条新闻。保存后自动更新。`;}
-        catch(error){status.textContent=typeof error==='string'?error:error instanceof Error?error.message:'测试未完成';}
+        localizedText(status, () => t("正在读取接口…"));test.disabled=true;
+        try {if(source.format==='adapter'&&adapterErrors.has(source.id))throw adapterErrors.get(source.id);if(!source.name.trim()||!validSourceURL(source.url))throw t("请先填写来源名称和有效 URL");const result=await bridge.testSource(source,sourceKeyEdits.get(source.id));if(result.error||result.text==null)throw result.error||t("未返回数据");const items=parseFeed(source.id,result.text!);localizedText(status, () => t("格式正确：读取 {0} 条新闻。保存后自动更新。", items.length));}
+        catch(error){localizedText(status, () => typeof error==='string'?localizeMessage(error):error instanceof Error?error.message:t("测试未完成"));}
         finally{test.disabled=false;}
       }
-      editor.append(test,button('删除来源已存 Key',()=>{sourceKeyEdits.set(source.id,'');secret.value='';secret.placeholder='保存设置后删除 Key';},'text-action'),status);
+      editor.append(test,button(() => t("删除来源已存 Key"),()=>{sourceKeyEdits.set(source.id,'');secret.value='';localizedAttr(secret, 'placeholder', () => t("保存设置后删除 Key"));},'text-action'),status);
     }
     addSource.disabled=prefs.customSources.length>=maxSources;
-    if(!available.children.length)available.append(el('p','hint','目录中的来源均已安装。'));
-    if(!editors.children.length)editors.append(el('p','hint','尚未安装来源。打开下方“安装来源”选择或导入。'));
+    if(!available.children.length)available.append(el('p','hint',() => t("目录中的来源均已安装。")));
+    if(!editors.children.length)editors.append(el('p','hint',() => t("尚未安装来源。打开下方“安装来源”选择或导入。")));
   }
-  const addSource=button('添加来源',()=>{if(prefs.customSources.length>=maxSources)return;const id=`custom:${Date.now().toString(36)}-${Math.random().toString(36).slice(2,10)}`;prefs.customSources.push({id,name:'',url:'',auth:'none',format:'auto',folder:''});installChannel(prefs,id);renderSourceEditors();editors.lastElementChild?.querySelector('input:not([type=checkbox])')?.scrollIntoView({block:'nearest'});},'text-action');custom.append(addSource);
+  const addSource=button(() => t("添加来源"),()=>{if(prefs.customSources.length>=maxSources)return;const id=`custom:${Date.now().toString(36)}-${Math.random().toString(36).slice(2,10)}`;prefs.customSources.push({id,name:'',url:'',auth:'none',format:'auto',folder:''});installChannel(prefs,id);renderSourceEditors();editors.lastElementChild?.querySelector('input:not([type=checkbox])')?.scrollIntoView({block:'nearest'});},'text-action');custom.append(addSource);
   const importPanel=el('div','subscription-import');custom.append(importPanel);
-  const batch=el('details','settings-disclosure import-text-editor');batch.append(el('summary','','批量添加与 OPML'));importPanel.append(batch);
+  const batch=el('details','settings-disclosure import-text-editor');batch.append(el('summary','',() => t("批量添加与 OPML")));importPanel.append(batch);
   let previewGeneration=0;
-  const batchInput=field(batch,'订阅地址或订阅目录','',()=>{previewGeneration++;preview=undefined;confirm.disabled=true;},true);batchInput.placeholder='每行一个订阅地址，或粘贴 OPML / JSON 来源目录';
+  const batchInput=field(batch,() => t("订阅地址或订阅目录"),'',()=>{previewGeneration++;preview=undefined;confirm.disabled=true;},true);localizedAttr(batchInput, 'placeholder', () => t("每行一个订阅地址，或粘贴 OPML / JSON 来源目录"));
   const importStatus=el('p','hint');importStatus.hidden=true;importStatus.setAttribute('role','status');const previewList=el('ul','subscription-preview');previewList.hidden=true;
   let preview:ImportPreview|undefined;
-  const confirm=button('安装这些来源',()=>{
-    if(!preview)return;preview=previewSubscriptions(batchInput.value,prefs);const count=installationCount(preview);for(const source of preview.updates){prefs.customSources=prefs.customSources.filter(s=>s.id!==source.id);prefs.customSources.push(source);}for(const source of preview.sources)prefs.customSources.push(source);for(const id of [...preview.sources.map(source=>source.id),...preview.updates.map(source=>source.id),...preview.reinstalls])installChannel(prefs,id);importStatus.textContent=`已安装${count}个来源，保存后开始更新。`;preview=undefined;confirm.disabled=true;confirm.hidden=true;previewList.hidden=true;previewList.replaceChildren();renderSourceEditors();
+  const confirm=button(() => t("安装这些来源"),()=>{
+    if(!preview)return;preview=previewSubscriptions(batchInput.value,prefs);const count=installationCount(preview);for(const source of preview.updates){prefs.customSources=prefs.customSources.filter(s=>s.id!==source.id);prefs.customSources.push(source);}for(const source of preview.sources)prefs.customSources.push(source);for(const id of [...preview.sources.map(source=>source.id),...preview.updates.map(source=>source.id),...preview.reinstalls])installChannel(prefs,id);localizedText(importStatus, () => t("已安装{0}个来源，保存后开始更新。", count));preview=undefined;confirm.disabled=true;confirm.hidden=true;previewList.hidden=true;previewList.replaceChildren();renderSourceEditors();
   },'text-action');confirm.disabled=true;confirm.hidden=true;
-  const inspect=button('预览导入',()=>{void (async()=>{
+  const inspect=button(() => t("预览导入"),()=>{void (async()=>{
     const generation=++previewGeneration;confirm.disabled=true;confirm.hidden=false;importStatus.hidden=false;previewList.hidden=false;
     const next=previewSubscriptions(batchInput.value,prefs);preview=undefined;
-    importStatus.textContent=`可安装${installationCount(next)}个，重复${next.duplicates}个。${next.issues.join('；')}`;
-    const description=(source:CustomSource)=>source.plugin?`${source.name} · v${source.plugin.manifest.version} · 网络：${source.plugin.manifest.network.join('、')}${source.plugin.manifest.auth?' · 需 Key':''}`:`${source.folder?source.folder+' / ':''}${source.name} · ${new URL(source.url).hostname}${source.auth==='bearer'?' · 需 Key':''}`;
-    previewList.replaceChildren(...next.reinstalls.map(id=>el('li','',`${sourceName(id,prefs)} · 重新安装`)),...next.updates.map(source=>el('li','',`更新／替换 · ${description(source)}`)),...next.sources.map(source=>el('li','',description(source))));
+    localizedText(importStatus, () => t("可安装{0}个，重复{1}个。{2}", installationCount(next), next.duplicates, next.issues.map(localizeMessage).join('; ')));
+    const description=(source:CustomSource)=>source.plugin?t("{0} · v{1} · 网络：{2}{3}", source.name, source.plugin.manifest.version, source.plugin.manifest.network.join('、'), source.plugin.manifest.auth?t(" · 需 Key"):''):`${source.folder?source.folder+' / ':''}${source.name} · ${new URL(source.url).hostname}${source.auth==='bearer'?t(" · 需 Key"):''}`;
+    previewList.replaceChildren(...next.reinstalls.map(id=>el('li','',() => t("{0} · 重新安装", sourceName(id,prefs)))),...next.updates.map(source=>el('li','',() => t("更新／替换 · {0}", description(source)))),...next.sources.map(source=>el('li','',()=>description(source))));
     try{
       const packages=[...next.sources,...next.updates].flatMap(source=>source.plugin?[source.plugin]:[]);
-      if(packages.length){importStatus.textContent+=' 检查脚本中…';await bridge.inspectPackages(packages);}
+      if(packages.length){localizedText(importStatus,()=>t("可安装{0}个，重复{1}个。{2}",installationCount(next),next.duplicates,next.issues.map(localizeMessage).join('; '))+t(" 检查脚本中…"));await bridge.inspectPackages(packages);}
       if(generation!==previewGeneration)return;
       preview=next;confirm.disabled=!installationCount(next);
-      importStatus.textContent=`可安装${installationCount(next)}个，重复${next.duplicates}个。${next.issues.join('；')}${packages.length?' 来源包检查通过；安装后可在配置中测试。':''}`;
-    }catch(error){if(generation===previewGeneration)importStatus.textContent=typeof error==='string'?error:'来源包检查失败';}
+      localizedText(importStatus, () => t("可安装{0}个，重复{1}个。{2}{3}", installationCount(next), next.duplicates, next.issues.map(localizeMessage).join('; '), packages.length?t(" 来源包检查通过；安装后可在配置中测试。"):''));
+    }catch(error){if(generation===previewGeneration)localizedText(importStatus, () => typeof error==='string'?localizeMessage(error):t("来源包检查失败"));}
   })();},'text-action');
   const fileInput=el('input');fileInput.type='file';fileInput.accept='.opml,.xml,.json,.txt';fileInput.hidden=true;
-  fileInput.addEventListener('change',()=>{void (async()=>{const file=fileInput.files?.[0];if(!file)return;const generation=++previewGeneration;preview=undefined;confirm.disabled=true;importStatus.hidden=false;if(file.size>1024*1024){importStatus.textContent='导入文件最多1 MiB';return;}const contents=await file.text();if(generation!==previewGeneration)return;batchInput.value=contents;preview=undefined;confirm.disabled=true;inspect.click();fileInput.value='';})().catch(()=>{importStatus.textContent='无法读取订阅文件';});});
-  const exported=field(batch,'导出的订阅文本','',()=>{},true);exported.readOnly=true;exported.closest('label')!.hidden=true;
-  const exportButton=button('导出 OPML',()=>{void (async()=>{importStatus.hidden=false;exported.value=exportOPML(prefs.customSources.filter(source=>isInstalled(prefs,source.id)));exported.closest('label')!.hidden=false;importStatus.textContent=(await bridge.exportSubscriptions(exported.value))+(prefs.customSources.some(s=>s.format==='adapter')?'；本地适配器请使用完整来源目录导出。':'');})().catch(error=>{importStatus.textContent=typeof error==='string'?error:'导出失败，可复制文本手动保存';});},'text-action');
-  const exportDirectory=button('导出完整来源目录',()=>{importStatus.hidden=false;exported.value=exportChannelDirectory(prefs);exported.closest('label')!.hidden=false;importStatus.textContent='已生成已安装来源清单，含内置来源和适配器规则、不含 Key；安装时默认启用。可复制保存。';},'text-action');
-  custom.insertBefore(button('从文件添加',()=>fileInput.click(),'text-action'),available);
+  fileInput.addEventListener('change',()=>{void (async()=>{const file=fileInput.files?.[0];if(!file)return;const generation=++previewGeneration;preview=undefined;confirm.disabled=true;importStatus.hidden=false;if(file.size>1024*1024){localizedText(importStatus, () => t("导入文件最多1 MiB"));return;}const contents=await file.text();if(generation!==previewGeneration)return;batchInput.value=contents;preview=undefined;confirm.disabled=true;inspect.click();fileInput.value='';})().catch(()=>{localizedText(importStatus, () => t("无法读取订阅文件"));});});
+  const exported=field(batch,() => t("导出的订阅文本"),'',()=>{},true);exported.readOnly=true;exported.closest('label')!.hidden=true;
+  const exportButton=button(() => t("导出 OPML"),()=>{void (async()=>{importStatus.hidden=false;exported.value=exportOPML(prefs.customSources.filter(source=>isInstalled(prefs,source.id)));exported.closest('label')!.hidden=false;const result=await bridge.exportSubscriptions(exported.value);localizedText(importStatus,()=>localizeMessage(result)+(prefs.customSources.some(s=>s.format==='adapter')?t("；本地适配器请使用完整来源目录导出。"):''));})().catch(error=>{localizedText(importStatus, () => typeof error==='string'?localizeMessage(error):t("导出失败，可复制文本手动保存"));});},'text-action');
+  const exportDirectory=button(() => t("导出完整来源目录"),()=>{importStatus.hidden=false;exported.value=exportChannelDirectory(prefs);exported.closest('label')!.hidden=false;localizedText(importStatus, () => t("已生成已安装来源清单，含内置来源和适配器规则、不含 Key；安装时默认启用。可复制保存。"));},'text-action');
+  custom.insertBefore(button(() => t("从文件添加"),()=>fileInput.click(),'text-action'),available);
   batch.append(exportDirectory,inspect,exportButton);importPanel.append(fileInput,importStatus,previewList,confirm);
   renderSourceEditors();
-  const appearance=section('外观');
-  select(appearance,'主题',[['system','跟随系统'],['light','浅色'],['dark','深色']],prefs.theme,value=>{prefs.theme=value as Preferences['theme'];applyAppearance(prefs);});
-  select(appearance,'强调色',[['orange','暖橙'],['blue','蓝色'],['green','绿色'],['purple','紫色']],prefs.accent,value=>{prefs.accent=value as Preferences['accent'];applyAppearance(prefs);});
-  const play = section('窗口与实时展示');
-  checkbox(play,'跳过已播放新闻（收起时）',prefs.skipPlayed,value=>prefs.skipPlayed=value);
-  play.append(el('p','hint','播完后自动跳过，手动翻页仍可回看；全部播完后停止滚动，等待新消息。'));  checkbox(play, '窗口置顶', prefs.pinned, v => { prefs.pinned = v; }); checkbox(play, '自动展示最新', prefs.autoScroll, v => { prefs.autoScroll = v; });
-  const speedLine=el('div','speed-setting'),speedLabel=el('label','setting-line','阅读速度'),speedOutput=el('output','speed-output');
-  const speed=el('input','speed-range');speed.type='range';speed.min='8';speed.max='80';speed.step='1';speed.value=String(prefs.scrollSpeed);speed.id='reading-speed';speed.setAttribute('aria-label','阅读速度');speedLabel.htmlFor=speed.id;speedLabel.append(speedOutput);
-  function showSpeed(){speedOutput.textContent=`${(prefs.scrollSpeed/22).toFixed(1)}×`;speed.setAttribute('aria-valuetext',`默认速度的 ${(prefs.scrollSpeed/22).toFixed(1)} 倍`);}
+  const appearance=section(() => t("外观"));
+  select(appearance,() => t('语言'),[['system', () => t('跟随系统')], ['zh-CN', '简体中文'], ['en', 'English']],prefs.language??'system',value=>{prefs.language=value as Preferences['language'];applyLanguage(prefs);refreshTranslations(root);renderStatus();void bridge.previewLanguage(prefs.language).catch(notifyError);});
+  select(appearance,() => t("主题"),[['system', () => t("跟随系统")], ['light', () => t("浅色")], ['dark', () => t("深色")]],prefs.theme,value=>{prefs.theme=value as Preferences['theme'];applyAppearance(prefs);});
+  select(appearance,() => t("强调色"),[['orange', () => t("暖橙")], ['blue', () => t("蓝色")], ['green', () => t("绿色")], ['purple', () => t("紫色")]],prefs.accent,value=>{prefs.accent=value as Preferences['accent'];applyAppearance(prefs);});
+  const play = section(() => t("窗口与实时展示"));
+  checkbox(play,() => t("跳过已播放新闻（收起时）"),prefs.skipPlayed,value=>prefs.skipPlayed=value);
+  play.append(el('p','hint',() => t("播完后自动跳过，手动翻页仍可回看；全部播完后停止滚动，等待新消息。")));  checkbox(play, () => t("窗口置顶"), prefs.pinned, v => { prefs.pinned = v; }); checkbox(play, () => t("自动展示最新"), prefs.autoScroll, v => { prefs.autoScroll = v; });
+  const speedLine=el('div','speed-setting'),speedLabel=el('label','setting-line',() => t("阅读速度")),speedOutput=el('output','speed-output');
+  const speed=el('input','speed-range');speed.type='range';speed.min='8';speed.max='80';speed.step='1';speed.value=String(prefs.scrollSpeed);speed.id='reading-speed';localizedAttr(speed, 'aria-label', () => t("阅读速度"));speedLabel.htmlFor=speed.id;speedLabel.append(speedOutput);
+  function showSpeed(){speedOutput.textContent=`${(prefs.scrollSpeed/22).toFixed(1)}×`;localizedAttr(speed, 'aria-valuetext', () => t("默认速度的 {0} 倍", (prefs.scrollSpeed/22).toFixed(1)));}
   speed.addEventListener('input',()=>{prefs.scrollSpeed=Number(speed.value);showSpeed();});showSpeed();
-  const speedEnds=el('div','speed-ends');speedEnds.append(el('span','','较慢'),button('恢复默认速度',()=>{prefs.scrollSpeed=22;speed.value='22';showSpeed();},'speed-reset'),el('span','','较快'));
-  speedLine.append(speedLabel,speed,speedEnds,el('p','hint','调整收起时新闻文字的播放速度。'));play.append(speedLine);
-  play.append(el('p', 'hint', '开启时，新快讯到达即显示最新；关闭后保留阅读位置。展开列表不会自动向历史滚动。'));
-  const keyword = section('关键词');
-  const keywordToggle = checkbox(keyword, '关键词高亮', prefs.keywordEnabled, v => { prefs.keywordEnabled = v; keywordField.disabled = !v; keywordFields.hidden = !v; keywordToggle.setAttribute('aria-expanded', String(v)); });
+  const speedEnds=el('div','speed-ends');speedEnds.append(el('span','',() => t("较慢")),button(() => t("恢复默认速度"),()=>{prefs.scrollSpeed=22;speed.value='22';showSpeed();},'speed-reset'),el('span','',() => t("较快")));
+  speedLine.append(speedLabel,speed,speedEnds,el('p','hint',() => t("调整收起时新闻文字的播放速度。")));play.append(speedLine);
+  play.append(el('p', 'hint', () => t("开启时，新快讯到达即显示最新；关闭后保留阅读位置。展开列表不会自动向历史滚动。")));
+  const keyword = section(() => t("关键词"));
+  const keywordToggle = checkbox(keyword, () => t("关键词高亮"), prefs.keywordEnabled, v => { prefs.keywordEnabled = v; keywordField.disabled = !v; keywordFields.hidden = !v; keywordToggle.setAttribute('aria-expanded', String(v)); });
   keywordToggle.setAttribute('aria-controls', 'keyword-fields'); keywordToggle.setAttribute('aria-expanded', String(prefs.keywordEnabled));
   const keywordFields = el('div', 'keyword-fields'); keywordFields.id = 'keyword-fields'; keywordFields.hidden = !prefs.keywordEnabled; keyword.append(keywordFields);
-  const keywordField = field(keywordFields, '关注词（逗号或换行分隔）', prefs.keywords, v => { prefs.keywords = v; }, true);
-  keywordFields.append(el('p', 'hint', '命中的新闻高亮显示，其余新闻正常保留。'));
-  keywordField.disabled = !prefs.keywordEnabled; keywordField.placeholder = '例如：美联储，人工智能，新能源';
-  const aiSection = section('AI 高亮');aiSection.classList.add('ai-settings');
-  const enabledInput=checkbox(aiSection, '用 AI 标记感兴趣的新闻', prefs.aiEnabled, v => { prefs.aiEnabled = v; if(v){ai.open=true;prefs.aiPaused=false;}else prefs.aiPaused=true; });enabledInput.dataset.aiEnabled='';
-  aiSection.append(el('p', 'hint', '符合关注条件的新闻会高亮，其余新闻照常展示。默认只判断开启后发布或更正的新闻。'));
+  const keywordField = field(keywordFields, () => t("关注词（逗号或换行分隔）"), prefs.keywords, v => { prefs.keywords = v; }, true);
+  keywordFields.append(el('p', 'hint', () => t("命中的新闻高亮显示，其余新闻正常保留。")));
+  keywordField.disabled = !prefs.keywordEnabled; localizedAttr(keywordField, 'placeholder', () => t("例如：美联储，人工智能，新能源"));
+  const aiSection = section(() => t("AI 高亮"));aiSection.classList.add('ai-settings');
+  const enabledInput=checkbox(aiSection, () => t("用 AI 标记感兴趣的新闻"), prefs.aiEnabled, v => { prefs.aiEnabled = v; if(v){ai.open=true;prefs.aiPaused=false;}else prefs.aiPaused=true; });enabledInput.dataset.aiEnabled='';
+  aiSection.append(el('p', 'hint', () => t("符合关注条件的新闻会高亮，其余新闻照常展示。默认只判断开启后发布或更正的新闻。")));
   const ai = el('details', 'settings-disclosure'); ai.open = prefs.aiEnabled;
-  ai.append(el('summary', '', '连接 AI 模型')); aiSection.append(ai);
-  select(ai, '接口格式', [['decisions','JEV Decisions'],['chat','Chat Completions'],['messages','Messages'],['responses','Responses']], prefs.ai.format, v => { prefs.ai.format = v as Preferences['ai']['format'];updateProtocolFields(); });
-  const endpointField = field(ai, '服务地址（完整 API URL）', prefs.ai.apiUrl, v => { prefs.ai.apiUrl = v; keyChangedHost(); });
-  field(ai, '模型名称', prefs.ai.model, v => { prefs.ai.model = v; });
+  ai.append(el('summary', '', () => t("连接 AI 模型"))); aiSection.append(ai);
+  select(ai, () => t("接口格式"), [['decisions', 'JEV Decisions'], ['chat', 'Chat Completions'], ['messages', 'Messages'], ['responses', 'Responses']], prefs.ai.format, v => { prefs.ai.format = v as Preferences['ai']['format'];updateProtocolFields(); });
+  const endpointField = field(ai, () => t("服务地址（完整 API URL）"), prefs.ai.apiUrl, v => { prefs.ai.apiUrl = v; keyChangedHost(); });
+  field(ai, () => t("模型名称"), prefs.ai.model, v => { prefs.ai.model = v; });
   let newKey: string | undefined, keyHost = prefs.ai.apiUrl;
   const keyField = field(ai, 'API Key', '', v => { newKey = v; }) as HTMLInputElement;
-  ai.append(el('p','hint','Key 以明文保存在本机，不随配置导出。'));
-  keyField.type = 'password'; keyField.autocomplete = 'new-password'; keyField.placeholder = hasKey ? '已保存 · 留空保持原 Key' : '留空保留已保存的 Key';
+  ai.append(el('p','hint',() => t("Key 以明文保存在本机，不随配置导出。")));
+  keyField.type = 'password'; keyField.autocomplete = 'new-password'; localizedAttr(keyField, 'placeholder', () => hasKey ? t("已保存 · 留空保持原 Key") : t("留空保留已保存的 Key"));
   function keyChangedHost() {
     if (!keyField) return;
-    if (keyHost !== endpointField.value) { keyField.value = ''; newKey = undefined; keyField.placeholder = '新地址 · 填写此服务的 Key，留空使用已保存的 Key'; keyHost = endpointField.value; }
+    if (keyHost !== endpointField.value) { keyField.value = ''; newKey = undefined; localizedAttr(keyField, 'placeholder', () => t("新地址 · 填写此服务的 Key，留空使用已保存的 Key")); keyHost = endpointField.value; }
   }
-  ai.append(button('删除此地址已保存的 Key', () => { newKey = ''; keyField.value = ''; keyField.placeholder = '保存设置后删除 Key'; }, 'quit-button'));
-  field(ai, '我关注什么', prefs.interests, v => { prefs.interests = v; }, true);
-  ai.append(el('p','hint','例如：关注美联储利率决议和 AI 芯片，忽略明星、体育与广告。'));
-  const threshold=select(ai, 'JEV 高亮阈值', [['0.5','50%'],['0.7','70%'],['0.9','90%']], String(prefs.threshold), v => { prefs.threshold = Number(v); });
-  const advanced=el('details','settings-disclosure ai-advanced');advanced.append(el('summary','','高级设置'));ai.append(advanced);
-  const systemField=field(advanced,'系统提示词',prefs.ai.systemPrompt,value=>{prefs.ai.systemPrompt=value;},true);
-  advanced.append(button('恢复默认系统提示词',()=>{prefs.ai.systemPrompt=defaultSystemPrompt;systemField.value=defaultSystemPrompt;},'text-action'));
-  select(advanced,'鉴权方式',[['auto','按协议自动'],['bearer','Bearer Key'],['x-api-key','x-api-key']],prefs.ai.auth,value=>{prefs.ai.auth=value as Preferences['ai']['auth'];});
-  const apiVersion=field(advanced,'Messages API 版本',prefs.ai.apiVersion,value=>{prefs.ai.apiVersion=value;});
-  const jsonMode=select(advanced,'JSON 约束方式',[['prompt','提示词约束（兼容优先）'],['object','JSON Object'],['schema','JSON Schema（需接口支持）']],prefs.ai.jsonMode,value=>{prefs.ai.jsonMode=value as Preferences['ai']['jsonMode'];});
-  const contract=el('pre','output-contract','{"schemaVersion":1,"results":[{"id":"输入新闻ID","relevant":true,"reason":"与关注主题直接相关","tags":["主题"]}]}');advanced.append(contract);
+  ai.append(button(() => t("删除此地址已保存的 Key"), () => { newKey = ''; keyField.value = ''; localizedAttr(keyField, 'placeholder', () => t("保存设置后删除 Key")); }, 'quit-button'));
+  field(ai, () => t("我关注什么"), prefs.interests, v => { prefs.interests = v; }, true);
+  ai.append(el('p','hint',() => t("例如：关注美联储利率决议和 AI 芯片，忽略明星、体育与广告。")));
+  const threshold=select(ai, () => t("JEV 高亮阈值"), [['0.5', '50%'], ['0.7', '70%'], ['0.9', '90%']], String(prefs.threshold), v => { prefs.threshold = Number(v); });
+  const advanced=el('details','settings-disclosure ai-advanced');advanced.append(el('summary','',() => t("高级设置")));ai.append(advanced);
+  const systemField=field(advanced,() => t("系统提示词"),prefs.ai.systemPrompt,value=>{prefs.ai.systemPrompt=value;},true);
+  advanced.append(button(() => t("恢复默认系统提示词"),()=>{prefs.ai.systemPrompt=defaultSystemPrompt;systemField.value=defaultSystemPrompt;},'text-action'));
+  select(advanced,() => t("鉴权方式"),[['auto', () => t("按协议自动")], ['bearer', 'Bearer Key'], ['x-api-key', 'x-api-key']],prefs.ai.auth,value=>{prefs.ai.auth=value as Preferences['ai']['auth'];});
+  const apiVersion=field(advanced,() => t("Messages API 版本"),prefs.ai.apiVersion,value=>{prefs.ai.apiVersion=value;});
+  const jsonMode=select(advanced,() => t("JSON 约束方式"),[['prompt', () => t("提示词约束（兼容优先）")], ['object', 'JSON Object'], ['schema', () => t("JSON Schema（需接口支持）")]],prefs.ai.jsonMode,value=>{prefs.ai.jsonMode=value as Preferences['ai']['jsonMode'];});
+  const contract=el('pre','output-contract',() => t("{\"schemaVersion\":1,\"results\":[{\"id\":\"输入新闻ID\",\"relevant\":true,\"reason\":\"与关注主题直接相关\",\"tags\":[\"主题\"]}]}"));advanced.append(contract);
   const contractHint=el('p','hint');advanced.append(contractHint);
   function updateProtocolFields(){
     const jev=prefs.ai.format==='decisions',messages=prefs.ai.format==='messages';
@@ -958,67 +967,67 @@ function renderSettings(panel: HTMLElement) {
     for(const option of jsonMode.options)option.disabled=messages&&option.value==='object';
     if(messages&&prefs.ai.jsonMode==='object'){prefs.ai.jsonMode='prompt';jsonMode.value='prompt';}
     threshold.closest('label')!.hidden=!jev;outputTokens.closest('label')!.hidden=jev;
-    contractHint.textContent=jev?'JEV 使用 Noul 问题，只按返回概率与阈值判断；不要求生成 JSON 文本。':'批量返回每个新闻 ID 的结果。relevant 决定 AI 高亮，reason 可展开查看，tags 单独展示。JSON 格式错误不会隐藏新闻。';
+    localizedText(contractHint, () => jev?t("JEV 使用 Noul 问题，只按返回概率与阈值判断；不要求生成 JSON 文本。"):t("批量返回每个新闻 ID 的结果。relevant 决定 AI 高亮，reason 可展开查看，tags 单独展示。JSON 格式错误不会隐藏新闻。"));
   }
-  select(advanced,'模型思考模式',[['default','接口默认'],['disabled','关闭思考（需接口支持）']],prefs.ai.thinkingMode,value=>{prefs.ai.thinkingMode=value as Preferences['ai']['thinkingMode'];});
-  select(advanced,'每批最多新闻',[['1','1 条'],['4','4 条'],['8','8 条'],['16','16 条'],['20','20 条']],String(prefs.ai.batchSize),value=>{prefs.ai.batchSize=Number(value);});
-  advanced.append(el('p','hint','按所选频控窗口内的新闻速度与篇幅平滑估算合批，零散新闻最多额外等待 2 秒。每批不超过条数和字符上限。'));
-  const safety=el('details','settings-disclosure ai-safety');safety.open=prefs.aiEnabled;safety.append(el('summary','','判断范围与用量保护'));aiSection.append(safety);
-  safety.append(button(state.preferences.aiPaused?'继续 AI 判断':'立即停止 AI',()=>void controlAI(!state.preferences.aiPaused),'ai-safety-control text-action'));
+  select(advanced,() => t("模型思考模式"),[['default', () => t("接口默认")], ['disabled', () => t("关闭思考（需接口支持）")]],prefs.ai.thinkingMode,value=>{prefs.ai.thinkingMode=value as Preferences['ai']['thinkingMode'];});
+  select(advanced,() => t("每批最多新闻"),[['1', () => t("1 条")], ['4', () => t("4 条")], ['8', () => t("8 条")], ['16', () => t("16 条")], ['20', () => t("20 条")]],String(prefs.ai.batchSize),value=>{prefs.ai.batchSize=Number(value);});
+  advanced.append(el('p','hint',() => t("按所选频控窗口内的新闻速度与篇幅平滑估算合批，零散新闻最多额外等待 2 秒。每批不超过条数和字符上限。")));
+  const safety=el('details','settings-disclosure ai-safety');safety.open=prefs.aiEnabled;safety.append(el('summary','',() => t("判断范围与用量保护")));aiSection.append(safety);
+  safety.append(button(() => state.preferences.aiPaused?t("继续 AI 判断"):t("立即停止 AI"),()=>void controlAI(!state.preferences.aiPaused),'ai-safety-control text-action'));
   const usageText=el('p','hint ai-usage');safety.append(usageText);
-  checkbox(safety,'只判断开启后发布或更正的新闻',prefs.aiLimits.newOnly,value=>prefs.aiLimits.newOnly=value);
-  select(safety,'只判断最近',[['15','15 分钟'],['30','30 分钟'],['60','1 小时'],['360','6 小时'],['1440','24 小时']],String(prefs.aiLimits.lookbackMinutes),value=>prefs.aiLimits.lookbackMinutes=Number(value));
-  function limit(label:string,value:number,min:number,max:number,change:(value:number)=>void){const input=field(safety,label,String(value),v=>change(Number(v))) as HTMLInputElement;input.type='number';input.min=String(min);input.max=String(max);input.required=true;input.step='1';return input;}
+  checkbox(safety,() => t("只判断开启后发布或更正的新闻"),prefs.aiLimits.newOnly,value=>prefs.aiLimits.newOnly=value);
+  select(safety,() => t("只判断最近"),[['15', () => t("15 分钟")], ['30', () => t("30 分钟")], ['60', () => t("1 小时")], ['360', () => t("6 小时")], ['1440', () => t("24 小时")]],String(prefs.aiLimits.lookbackMinutes),value=>prefs.aiLimits.lookbackMinutes=Number(value));
+  function limit(label:Label,value:number,min:number,max:number,change:(value:number)=>void){const input=field(safety,label,String(value),v=>change(Number(v))) as HTMLInputElement;input.type='number';input.min=String(min);input.max=String(max);input.required=true;input.step='1';return input;}
   const cadence=el('p','hint ai-cadence');
-  function updateCadence(){cadence.textContent=`请求最短间隔 ${requestInterval(prefs.aiLimits)/1000} 秒；按请求频控窗口平滑合批。`;}
-  select(safety,'请求频控窗口',[['1','1 分钟'],['5','5 分钟'],['15','15 分钟'],['30','30 分钟'],['60','1 小时']],String(prefs.aiLimits.requestWindowMinutes??1),value=>{prefs.aiLimits.requestWindowMinutes=Number(value);updateCadence();});
-  limit('窗口内最多请求（次）',prefs.aiLimits.maxRequestsPerMinute,1,120,value=>{prefs.aiLimits.maxRequestsPerMinute=value;updateCadence();});updateCadence();safety.append(cadence);
-  select(safety,'同时请求数量',[['1','1 个'],['2','2 个'],['3','3 个'],['4','4 个']],String(prefs.ai.concurrency),value=>prefs.ai.concurrency=Number(value));
-  const daily=el('details','settings-disclosure daily-budget');daily.append(el('summary','','每日额度（可选）'));safety.append(daily);
+  function updateCadence(){localizedText(cadence, () => t("请求最短间隔 {0} 秒；按请求频控窗口平滑合批。", requestInterval(prefs.aiLimits)/1000));}
+  select(safety,() => t("请求频控窗口"),[['1', () => t("1 分钟")], ['5', () => t("5 分钟")], ['15', () => t("15 分钟")], ['30', () => t("30 分钟")], ['60', () => t("1 小时")]],String(prefs.aiLimits.requestWindowMinutes??1),value=>{prefs.aiLimits.requestWindowMinutes=Number(value);updateCadence();});
+  limit(() => t("窗口内最多请求（次）"),prefs.aiLimits.maxRequestsPerMinute,1,120,value=>{prefs.aiLimits.maxRequestsPerMinute=value;updateCadence();});updateCadence();safety.append(cadence);
+  select(safety,() => t("同时请求数量"),[['1', () => t("1 个")], ['2', () => t("2 个")], ['3', () => t("3 个")], ['4', () => t("4 个")]],String(prefs.ai.concurrency),value=>prefs.ai.concurrency=Number(value));
+  const daily=el('details','settings-disclosure daily-budget');daily.append(el('summary','',() => t("每日额度（可选）")));safety.append(daily);
   const dailyFields=el('div');dailyFields.hidden=!prefs.aiLimits.dailyEnabled;
-  checkbox(daily,'启用每日硬额度',prefs.aiLimits.dailyEnabled,value=>{prefs.aiLimits.dailyEnabled=value;dailyFields.hidden=!value;for(const input of dailyFields.querySelectorAll('input'))input.disabled=!value;});daily.append(dailyFields);
-  function dailyLimit(label:string,value:number,min:number,max:number,change:(value:number)=>void){const input=limit(label,value,min,max,change);dailyFields.append(input.closest('label')!);input.disabled=!prefs.aiLimits.dailyEnabled;}
-  dailyLimit('24 小时最多判断（条）',prefs.aiLimits.maxItems24h,1,10000,value=>prefs.aiLimits.maxItems24h=value);
-  dailyLimit('24 小时最多请求（次）',prefs.aiLimits.maxRequests24h,1,1000,value=>prefs.aiLimits.maxRequests24h=value);
-  dailyLimit('24 小时最多输入（字符）',prefs.aiLimits.maxInputChars24h,2000,10000000,value=>prefs.aiLimits.maxInputChars24h=value);
-  const moreLimits=el('details','settings-disclosure');moreLimits.append(el('summary','','更多保护设置'));safety.append(moreLimits);
-  const minuteInput=limit('每分钟最多输入（字符）',prefs.aiLimits.maxInputCharsPerMinute,8000,2000000,value=>prefs.aiLimits.maxInputCharsPerMinute=value);moreLimits.append(minuteInput.closest('label')!);
-  select(moreLimits,'单次输入上限',[['8000','8,000 字符'],['16000','16,000 字符'],['32000','32,000 字符'],['60000','60,000 字符'],['64000','64,000 字符'],['128000','128,000 字符']],String(prefs.aiLimits.maxCharsPerRequest),value=>prefs.aiLimits.maxCharsPerRequest=Number(value));
-  const outputTokens=select(moreLimits,'单次输出上限',[['512','512 tokens'],['1024','1,024 tokens'],['2048','2,048 tokens'],['4096','4,096 tokens']],String(prefs.ai.maxOutputTokens),value=>prefs.ai.maxOutputTokens=Number(value));
-  select(moreLimits,'失败后自动重试',[['0','关闭'],['1','最多一次']],String(prefs.aiLimits.maxRetries),value=>prefs.aiLimits.maxRetries=Number(value));
-  checkbox(moreLimits,'也判断没有发布时间的新闻',prefs.aiLimits.includeEstimated,value=>prefs.aiLimits.includeEstimated=value);
-  safety.append(el('p','hint','命中与未命中的结果都会保存。达到限额时排队，优先判断最新新闻。金额限额请在服务商设置。'));
-  const testArea=el('details','settings-disclosure');testArea.append(el('summary','','测试连接'));ai.append(testArea);
-  const testInput=field(testArea,'试判新闻','',()=>{},true);testInput.placeholder='粘贴一条新闻，仅在点击试判时发送';
+  checkbox(daily,() => t("启用每日硬额度"),prefs.aiLimits.dailyEnabled,value=>{prefs.aiLimits.dailyEnabled=value;dailyFields.hidden=!value;for(const input of dailyFields.querySelectorAll('input'))input.disabled=!value;});daily.append(dailyFields);
+  function dailyLimit(label:Label,value:number,min:number,max:number,change:(value:number)=>void){const input=limit(label,value,min,max,change);dailyFields.append(input.closest('label')!);input.disabled=!prefs.aiLimits.dailyEnabled;}
+  dailyLimit(() => t("24 小时最多判断（条）"),prefs.aiLimits.maxItems24h,1,10000,value=>prefs.aiLimits.maxItems24h=value);
+  dailyLimit(() => t("24 小时最多请求（次）"),prefs.aiLimits.maxRequests24h,1,1000,value=>prefs.aiLimits.maxRequests24h=value);
+  dailyLimit(() => t("24 小时最多输入（字符）"),prefs.aiLimits.maxInputChars24h,2000,10000000,value=>prefs.aiLimits.maxInputChars24h=value);
+  const moreLimits=el('details','settings-disclosure');moreLimits.append(el('summary','',() => t("更多保护设置")));safety.append(moreLimits);
+  const minuteInput=limit(() => t("每分钟最多输入（字符）"),prefs.aiLimits.maxInputCharsPerMinute,8000,2000000,value=>prefs.aiLimits.maxInputCharsPerMinute=value);moreLimits.append(minuteInput.closest('label')!);
+  select(moreLimits,() => t("单次输入上限"),[['8000', () => t("8,000 字符")], ['16000', () => t("16,000 字符")], ['32000', () => t("32,000 字符")], ['60000', () => t("60,000 字符")], ['64000', () => t("64,000 字符")], ['128000', () => t("128,000 字符")]],String(prefs.aiLimits.maxCharsPerRequest),value=>prefs.aiLimits.maxCharsPerRequest=Number(value));
+  const outputTokens=select(moreLimits,() => t("单次输出上限"),[['512', '512 tokens'], ['1024', '1,024 tokens'], ['2048', '2,048 tokens'], ['4096', '4,096 tokens']],String(prefs.ai.maxOutputTokens),value=>prefs.ai.maxOutputTokens=Number(value));
+  select(moreLimits,() => t("失败后自动重试"),[['0', () => t("关闭")], ['1', () => t("最多一次")]],String(prefs.aiLimits.maxRetries),value=>prefs.aiLimits.maxRetries=Number(value));
+  checkbox(moreLimits,() => t("也判断没有发布时间的新闻"),prefs.aiLimits.includeEstimated,value=>prefs.aiLimits.includeEstimated=value);
+  safety.append(el('p','hint',() => t("命中与未命中的结果都会保存。达到限额时排队，优先判断最新新闻。金额限额请在服务商设置。")));
+  const testArea=el('details','settings-disclosure');testArea.append(el('summary','',() => t("测试连接")));ai.append(testArea);
+  const testInput=field(testArea,() => t("试判新闻"),'',()=>{},true);localizedAttr(testInput, 'placeholder', () => t("粘贴一条新闻，仅在点击试判时发送"));
   const testOutput=el('p','hint connection-test-result');testOutput.setAttribute('role','status');
-  const tryAI=button('试判一次',()=>{void runAI();},'text-action');
-  const stopTest=button('停止试判',()=>void controlAI(true),'text-action');stopTest.hidden=true;
+  const tryAI=button(() => t("试判一次"),()=>{void runAI();},'text-action');
+  const stopTest=button(() => t("停止试判"),()=>void controlAI(true),'text-action');stopTest.hidden=true;
   async function runAI(){
-    testOutput.textContent='正在试判…';tryAI.disabled=true;stopTest.hidden=false;
+    localizedText(testOutput, () => t("正在试判…"));tryAI.disabled=true;stopTest.hidden=false;
     try {
-      if(!testInput.value.trim())throw '请粘贴一条试判新闻';if(!validEndpoint(prefs.ai))throw '请检查 API URL、模型和系统提示词';
+      if(!testInput.value.trim())throw t("请粘贴一条试判新闻");if(!validEndpoint(prefs.ai))throw t("请检查 API URL、模型和系统提示词");
       const result=await bridge.testAI(prefs.ai,prefs.interests,{id:'preview:test',source:'preview',title:'',body:testInput.value,publishedAt:Date.now(),url:'',tags:[]},newKey);
-      testOutput.textContent=result.kind==='decision'?`JEV 相关概率 ${Math.round(result.probability*100)}% · ${result.probability>=prefs.threshold?'命中':'未命中'}`:`${result.relevant?'命中':'未命中'} · ${result.reason}${result.tags?.length?` · 标签：${result.tags.join('、')}`:''}`;
-    }catch(error){const wait=typeof error==='string'?/^AI_WAIT:(\d+)$/u.exec(error):null;testOutput.textContent=wait?`请求频率已满，请约 ${Math.max(1,Math.ceil((Number(wait[1])-Date.now())/1000))} 秒后再试`:typeof error==='string'?error.replace(/^AI_PROVIDER_WAIT:\d+:/u,''):'试判未完成';}finally{tryAI.disabled=false;stopTest.hidden=true;}
+      localizedText(testOutput, () => result.kind==='decision'?t("JEV 相关概率 {0}% · {1}", Math.round(result.probability*100), result.probability>=prefs.threshold?t("命中"):t("未命中")):`${result.relevant?t("命中"):t("未命中")} · ${result.reason}${result.tags?.length?t(" · 标签：{0}", result.tags.join('、')):''}`);
+    }catch(error){const wait=typeof error==='string'?/^AI_WAIT:(\d+)$/u.exec(error):null;localizedText(testOutput, () => wait?t("请求频率已满，请约 {0} 秒后再试", Math.max(1,Math.ceil((Number(wait[1])-Date.now())/1000))):typeof error==='string'?localizeMessage(error.replace(/^AI_PROVIDER_WAIT:\d+:/u,'')):t("试判未完成"));}finally{tryAI.disabled=false;stopTest.hidden=true;}
   }
-  testArea.append(tryAI,stopTest,testOutput,el('p','hint','试判同样受已保存的频率与额度设置约束。'));updateProtocolFields();
-  const cache = el('details', 'settings-section settings-disclosure'); cache.append(el('summary', '', '本地数据')); scroll.append(cache); cache.append(el('p', 'hint', '保留最近 7 天、最多 1,000 条原始快讯；重点未读单独保留。旧版受系统保护的缓存不再自动读取，原文件原样保留。'), el('p', 'path', dataPath));
-  if (storageError) cache.append(el('p', 'settings-error', storageError));
+  testArea.append(tryAI,stopTest,testOutput,el('p','hint',() => t("试判同样受已保存的频率与额度设置约束。")));updateProtocolFields();
+  const cache = el('details', 'settings-section settings-disclosure'); cache.append(el('summary', '', () => t("本地数据"))); scroll.append(cache); cache.append(el('p', 'hint', () => t("保留最近 7 天、最多 1,000 条原始快讯；重点未读单独保留。旧版受系统保护的缓存不再自动读取，原文件原样保留。")), el('p', 'path', () => t(dataPath)));
+  if (storageError) cache.append(el('p', 'settings-error', () => localizeMessage(storageError??'')));
   const actions = el('div', 'settings-actions'), errorLabel = el('p', 'settings-error settings-save-error'); errorLabel.setAttribute('role', 'alert');
-  const save = button('保存', () => { void saveSettings(); }, 'save-button');
-  actions.append(button('退出应用', () => void bridge.quit(), 'quit-button'), el('span', 'spacer'), button('取消', () => void setMode(previousMode), 'collapse'), save);
+  const save = button(() => t("保存"), () => { void saveSettings(); }, 'save-button');
+  actions.append(button(() => t("退出应用"), () => void bridge.quit(), 'quit-button'), el('span', 'spacer'), button(() => t("取消"), () => void setMode(previousMode), 'collapse'), save);
   scroll.addEventListener('submit', event => { event.preventDefault(); void saveSettings(); });
   async function saveSettings() {
     const ruleError=prefs.customSources.find(s=>s.format==='adapter'&&adapterErrors.has(s.id));if(ruleError){errorLabel.textContent=adapterErrors.get(ruleError.id)!;return;}
     const sourceError=validateSources(prefs);if(sourceError){
-      errorLabel.textContent=sourceError;
+      localizedText(errorLabel,()=>localizeMessage(sourceError));
       const invalid=prefs.customSources.find(source=>validateSources({...prefs,customSources:[source],sources:[],uninstalledSources:[]}));
       const group=invalid?[...editors.querySelectorAll<HTMLElement>('.source-entry')].find(node=>node.dataset.sourceId===invalid.id):undefined;
       if(group){const editor=group.querySelector<HTMLDetailsElement>('.source-editor');if(editor)editor.open=true;const inputs=group.querySelectorAll<HTMLInputElement>('input:not([type=checkbox])');(inputs[invalid!.name.trim()&&!validSourceURL(invalid!.url)?1:0])?.focus();}
       else {custom.open=true;feeds.querySelector('input')?.focus();}
       return;
     }
-    if ((newKey || prefs.aiEnabled) && !validEndpoint(prefs.ai)) { errorLabel.textContent = '请先填写有效的 HTTPS URL 和模型名称'; ai.open = true; endpointField.focus(); return; }
+    if ((newKey || prefs.aiEnabled) && !validEndpoint(prefs.ai)) { localizedText(errorLabel, () => t("请先填写有效的 HTTPS URL 和模型名称")); ai.open = true; endpointField.focus(); return; }
     if(!scroll.reportValidity())return;
     save.disabled = true;settingsSaving=true;const previousPreferences=state.preferences,revision=aiControlRevision;
     const wantsAI=!prefs.aiPaused;
@@ -1041,16 +1050,16 @@ function renderSettings(panel: HTMLElement) {
       }
       if(revision!==aiControlRevision)prefs.aiPaused=true;
       scheduleAttention();await persist(true,true);quotaBlocked=false;if(aiChanged)analysisQueue.retry();else analysisQueue.wake(); await setMode(previousMode); void screenNews();if(sourcesChanged)void refresh();
-    } catch (error) {if(revision!==aiControlRevision)previousPreferences.aiEnabled=state.preferences.aiEnabled;previousPreferences.aiPaused=true;state.preferences=previousPreferences;void bridge.setAIPaused(true);applyAppearance();errorLabel.textContent = typeof error === 'string' ? error : '保存未完成，请重试'; save.disabled = false; }finally{settingsSaving=false;void screenNews();}
+    } catch (error) {if(revision!==aiControlRevision)previousPreferences.aiEnabled=state.preferences.aiEnabled;previousPreferences.aiPaused=true;state.preferences=previousPreferences;void bridge.setAIPaused(true);applyAppearance();localizedText(errorLabel, () => typeof error === 'string' ? localizeMessage(error) : t("保存未完成，请重试")); save.disabled = false; }finally{settingsSaving=false;void screenNews();}
   }
   panel.append(scroll, errorLabel, actions);
 }
 
 async function start() {
   let smoke = false;
-  try { const loaded = await bridge.load(); state = loaded.state; appName = loaded.appName || appName; dataPath = loaded.dataPath; storageError = loaded.warning; smoke = !!loaded.smoke;nativeCompactDrag=!!loaded.nativeCompactDrag;nativeResizeDrag=!!loaded.nativeResizeDrag; }
-  catch { storageError = '本地缓存不可用；本次使用内存模式'; }
-  document.title = appName;
+  try { const loaded = await bridge.load(); state = loaded.state; state.preferences.language ??= 'system'; systemLocale = loaded.systemLocale || navigator.language; dataPath = loaded.dataPath; storageError = loaded.warning; smoke = !!loaded.smoke;nativeCompactDrag=!!loaded.nativeCompactDrag;nativeResizeDrag=!!loaded.nativeResizeDrag; }
+  catch { storageError = t("本地缓存不可用；本次使用内存模式"); }
+  applyLanguage();
   // Keys stay in the native backend; the frontend only receives availability.
   if (state.preferences.aiEnabled && !state.preferences.aiPaused && validEndpoint(state.preferences.ai)) hasKey = await bridge.keyStatus(state.preferences.ai).catch(() => false);
   applyAppearance();follow.auto = state.preferences.autoScroll;
@@ -1059,7 +1068,7 @@ async function start() {
   scheduleAttention();
   await bridge.events(ingest, next => void setMode(next, true),notifyError,updateNativeHover);
   if(native)updateNativeHover(await bridge.hovered().catch(()=>false));
-  if (smoke) state.items = Array.from({length:8}, (_,i) => ({id:`cls:native-test-${i}`,source:'cls',title:`原生窗口测试 ${i}`,body:'用于原生 WebView 滚动验证的长正文。'.repeat(40),publishedAt:Date.now()-i*60_000,url:'',tags:[]}));
+  if (smoke) state.items = Array.from({length:8}, (_,i) => ({id:`cls:native-test-${i}`,source:'cls',title:t("原生窗口测试 {0}", i),body:t("用于原生 WebView 滚动验证的长正文。").repeat(40),publishedAt:Date.now()-i*60_000,url:'',tags:[]}));
   renderShell(); requestAnimationFrame(frameLoop);
   // WKWebView can suspend rAF in a non-activating accessory window. Keep the
   // visible desktop ticker moving without requiring a click to activate it.
@@ -1086,7 +1095,7 @@ async function nativeSmoke() {
   resumeFollow();await wait(3500);
   let glanceScroll = storyAnchor && !!scroller && scroller.scrollHeight > scroller.clientHeight * 2 && scroller.scrollTop === 0;
   if (scroller) scroller.scrollTop = 200;
-  state.items = merge(state.items, [{id:'jin10:native-latest',source:'jin10',title:'原生测试 · 刚到的最新消息',body:'有新消息就回到顶部，没有新消息就保持，不自动往历史滚动。',publishedAt:Date.now(),url:'',tags:[]}]);
+  state.items = merge(state.items, [{id:'jin10:native-latest',source:'jin10',title:t("原生测试 · 刚到的最新消息"),body:t("有新消息就回到顶部，没有新消息就保持，不自动往历史滚动。"),publishedAt:Date.now(),url:'',tags:[]}]);
   updateView();
   glanceScroll = glanceScroll && !!scroller && scroller.scrollTop === 0;
   await setMode('feed'); await wait(3500);

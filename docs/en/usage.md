@@ -13,11 +13,11 @@
 | ⌘F / Ctrl+F | Search |
 | Esc | Collapse the window or close a menu |
 
-The ticker skips completed and duplicate stories by default, finishing the current story before new arrivals. Long stories start collapsed in the reader. Disable “自动展示最新” to keep your reading position when news arrives.
+The ticker skips completed and duplicate stories by default, finishing the current story before new arrivals. Long stories start collapsed in the reader. Disable “Follow latest news” to keep your reading position when news arrives.
 
 ## Add sources
 
-Open “设置 → 新闻来源 → 添加新闻来源”. Save changes to apply them. Uninstalled sources can be reinstalled.
+Open “Settings → News sources → Add news sources”. Save changes to apply them. Uninstalled sources can be reinstalled.
 
 | Source | Add it with |
 | --- | --- |
@@ -32,7 +32,7 @@ Open “设置 → 新闻来源 → 添加新闻来源”. Save changes to apply
 
 Both are off by default. Matches are highlighted; other stories remain visible.
 
-**Keywords:** enable “关键词高亮” and enter comma- or newline-separated terms.
+**Keywords:** enable “Keyword highlights” and enter comma- or newline-separated terms.
 
 ![Keyword settings](../assets/v0.1.0/keyword-settings-dark.png)
 
@@ -40,17 +40,19 @@ Both are off by default. Matches are highlighted; other stories remain visible.
 
 ![AI settings](../assets/v0.1.0/ai-settings-dark.png)
 
-Set news age, request rate and character limits in “判断范围与用量保护”. By default, only stories published or corrected after activation and within the last 30 minutes are analyzed. [Protocols and defaults](integrations.md#batching-and-limits)
+Set news age, request rate and character limits in “Analysis & usage limits”. By default, only stories published or corrected after activation and within the last 30 minutes are analyzed. [Protocols and defaults](integrations.md#batching-and-limits)
 
 ![AI limits](../assets/v0.1.0/ai-limits-dark.png)
 
-“开启 AI” uses saved settings or opens configuration when needed. “关闭 AI” or ⌘⇧K / Ctrl+Shift+K stops calls while preserving highlights and decisions.
+“Enable AI” uses saved settings or opens configuration when needed. “Disable AI” or ⌘⇧K / Ctrl+Shift+K stops calls while preserving highlights and decisions.
 
 ## Appearance and storage
 
+Choose System, 简体中文 or English under “Settings → Appearance → Language”. Changes preview instantly; Save keeps your choice. System uses English for English locales and Chinese otherwise.
+
 Settings controls theme, accent and scrolling speed. Click the pin to toggle always-on-top. Window dimensions are saved automatically.
 
-“本地数据” shows the storage path. Keys are stored as plaintext in a separate local file and excluded from configuration exports.
+“Local data” shows the storage path. Keys are stored as plaintext in a separate local file and excluded from configuration exports.
 
 | Platform | Default directory |
 | --- | --- |

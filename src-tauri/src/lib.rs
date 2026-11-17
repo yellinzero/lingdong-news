@@ -28,26 +28,57 @@ use tauri::{Emitter, Manager};
 
 struct TrayAiControl {
     item: tauri::menu::MenuItem<tauri::Wry>,
+    show: tauri::menu::MenuItem<tauri::Wry>,
+    settings: tauri::menu::MenuItem<tauri::Wry>,
+    quit: tauri::menu::MenuItem<tauri::Wry>,
     enabled: AtomicBool,
+    english: AtomicBool,
 }
-fn sync_tray_ai(app: &tauri::AppHandle) {
+fn sync_tray_controls(app: &tauri::AppHandle) {
     if let Some(tray) = app.try_state::<TrayAiControl>() {
-        let enabled = app
-            .state::<Backend>()
-            .disk
+        let backend = app.state::<Backend>();
+        let disk = backend.disk.lock().unwrap();
+        let enabled = disk.preferences.ai_enabled;
+        let saved_language = disk.preferences.language.clone();
+        drop(disk);
+        let preference = backend
+            .language_preview
             .lock()
             .unwrap()
-            .preferences
-            .ai_enabled;
-        if tray.enabled.swap(enabled, Ordering::SeqCst) != enabled {
+            .clone()
+            .unwrap_or(saved_language);
+        let english = branding::language(&preference) == "en";
+        let changed_language = tray.english.swap(english, Ordering::SeqCst) != english;
+        let changed_ai = tray.enabled.swap(enabled, Ordering::SeqCst) != enabled;
+        if changed_ai || changed_language {
+            let _ = tray.item.set_text(if enabled {
+                branding::text(&preference, "关闭 AI", "Disable AI")
+            } else {
+                branding::text(&preference, "开启 AI", "Enable AI")
+            });
+        }
+        if changed_language {
             let _ = tray
-                .item
-                .set_text(if enabled { "关闭 AI" } else { "开启 AI" });
+                .show
+                .set_text(branding::text(&preference, "查看快讯", "Latest news"));
+            let _ = tray
+                .settings
+                .set_text(branding::text(&preference, "设置", "Settings"));
+            let _ = tray
+                .quit
+                .set_text(branding::text(&preference, "退出", "Quit"));
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.set_title(branding::name(&preference));
+            }
+            if let Some(icon) = app.tray_by_id("main") {
+                let _ = icon.set_tooltip(Some(branding::name(&preference)));
+            }
         }
     }
 }
 struct Backend {
     disk: Mutex<DiskState>,
+    language_preview: Mutex<Option<String>>,
     ai_gate: ai_control::Gate,
     credentials: credentials::Store,
     writable: bool,
@@ -68,6 +99,7 @@ struct Backend {
 #[serde(rename_all = "camelCase")]
 struct Loaded {
     app_name: &'static str,
+    system_locale: String,
     state: DiskState,
     warning: Option<String>,
     data_path: String,
@@ -79,9 +111,11 @@ struct Loaded {
 #[tauri::command]
 fn load_state(app: tauri::AppHandle, backend: tauri::State<Backend>) -> Loaded {
     let _ = app;
+    let state = backend.disk.lock().unwrap().clone();
     Loaded {
-        app_name: branding::app_name(),
-        state: backend.disk.lock().unwrap().clone(),
+        app_name: branding::name(&state.preferences.language),
+        system_locale: sys_locale::get_locale().unwrap_or_default(),
+        state,
         warning: backend.warning.clone(),
         data_path: backend.path.display().to_string(),
         smoke: backend.smoke,
@@ -89,6 +123,19 @@ fn load_state(app: tauri::AppHandle, backend: tauri::State<Backend>) -> Loaded {
         native_resize_drag: !cfg!(target_os = "macos"),
     }
 }
+#[tauri::command]
+fn preview_language(app: tauri::AppHandle, language: Option<String>) -> Result<(), String> {
+    if language
+        .as_deref()
+        .is_some_and(|value| !["system", "zh-CN", "en"].contains(&value))
+    {
+        return Err("语言设置无效".into());
+    }
+    *app.state::<Backend>().language_preview.lock().unwrap() = language;
+    sync_tray_controls(&app);
+    Ok(())
+}
+
 #[tauri::command]
 async fn save_state(
     app: tauri::AppHandle,
@@ -116,7 +163,7 @@ async fn save_state(
         storage::save(&backend.path, &state)?;
         *current = state;
         drop(current);
-        sync_tray_ai(&app);
+        sync_tray_controls(&app);
         Ok(())
     })
     .await
@@ -181,7 +228,7 @@ async fn set_ai_paused(
     })
     .await
     .map_err(|_| "AI 状态保存未完成".to_string())?;
-    sync_tray_ai(&menu_app);
+    sync_tray_controls(&menu_app);
     result?;
     Ok(AiPauseState {
         paused,
@@ -969,6 +1016,7 @@ pub fn run() {
         }))
         .invoke_handler(tauri::generate_handler![
             load_state,
+            preview_language,
             inspect_source_packages,
             save_state,
             set_ai_paused,
@@ -1028,6 +1076,7 @@ pub fn run() {
             app.manage(Backend {
                 ai_gate,
                 disk: Mutex::new(disk),
+                language_preview: Mutex::new(None),
                 credentials: credentials::Store::new(path.with_file_name("credentials.json")),
                 writable,
                 warning,
@@ -1045,10 +1094,35 @@ pub fn run() {
             });
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
-            let show = tauri::menu::MenuItem::with_id(app, "show", "查看快讯", true, None::<&str>)?;
-            let settings =
-                tauri::menu::MenuItem::with_id(app, "settings", "设置", true, None::<&str>)?;
-            let quit = tauri::menu::MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
+            let language = app
+                .state::<Backend>()
+                .disk
+                .lock()
+                .unwrap()
+                .preferences
+                .language
+                .clone();
+            let show = tauri::menu::MenuItem::with_id(
+                app,
+                "show",
+                branding::text(&language, "查看快讯", "Latest news"),
+                true,
+                None::<&str>,
+            )?;
+            let settings = tauri::menu::MenuItem::with_id(
+                app,
+                "settings",
+                branding::text(&language, "设置", "Settings"),
+                true,
+                None::<&str>,
+            )?;
+            let quit = tauri::menu::MenuItem::with_id(
+                app,
+                "quit",
+                branding::text(&language, "退出", "Quit"),
+                true,
+                None::<&str>,
+            )?;
             let ai_enabled = app
                 .state::<Backend>()
                 .disk
@@ -1059,18 +1133,26 @@ pub fn run() {
             let ai_toggle = tauri::menu::MenuItem::with_id(
                 app,
                 "toggle-ai",
-                if ai_enabled { "关闭 AI" } else { "开启 AI" },
+                if ai_enabled {
+                    branding::text(&language, "关闭 AI", "Disable AI")
+                } else {
+                    branding::text(&language, "开启 AI", "Enable AI")
+                },
                 true,
                 None::<&str>,
             )?;
             let menu = tauri::menu::Menu::with_items(app, &[&show, &settings, &ai_toggle, &quit])?;
             app.manage(TrayAiControl {
                 item: ai_toggle,
+                show,
+                settings,
+                quit,
+                english: AtomicBool::new(branding::language(&language) == "en"),
                 enabled: AtomicBool::new(ai_enabled),
             });
-            tauri::tray::TrayIconBuilder::new()
+            tauri::tray::TrayIconBuilder::with_id("main")
                 .icon(app.default_window_icon().unwrap().clone())
-                .tooltip(branding::app_name())
+                .tooltip(branding::name(&language))
                 .menu(&menu)
                 .on_menu_event(|app, event| {
                     if event.id.as_ref() == "toggle-ai" {
@@ -1114,7 +1196,7 @@ pub fn run() {
                 })
                 .build(app)?;
             if let Some(window) = app.get_webview_window("main") {
-                window.set_title(branding::app_name())?;
+                window.set_title(branding::name(&language))?;
                 #[cfg(target_os = "macos")]
                 mac_window::install_compact_drag(
                     &window,

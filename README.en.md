@@ -2,7 +2,7 @@
   <img src="src-tauri/icons/icon.svg" width="80" height="80" alt="LingDongNews icon">
 </p>
 <h1 align="center">LingDongNews · 灵动新闻</h1>
-<p align="center">lingdong-news · 0.1.0</p>
+<p align="center">lingdong-news · 0.1.1</p>
 <p align="center">A few minutes while your agent works. A quick look at the news.</p>
 <p align="center">
   <a href="README.md">简体中文</a> · English<br>

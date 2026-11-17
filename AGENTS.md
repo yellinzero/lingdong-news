@@ -2,7 +2,7 @@
 
 Keep this app small. The desktop app uses Tauri 2 + vanilla TypeScript + Rust: `src/` for frontend, `src-tauri/` for native code, `tests/` for frontend and UI tests. One implementation serves macOS, Windows and Linux. Do not bundle a Node runtime or Chromium. It is a personal news ticker, not a trading system.
 
-- Follow the system language for the app name: Chinese uses 灵动新闻, English and fallback languages use LingDongNews. Keep the bundle identifier, source IDs and storage/credential accounts independent of display names.
+- Interface language supports system, 简体中文 and English. English systems use English; Chinese and unsupported system languages use Chinese. Follow the selected language for the window name and tray/context menus: 灵动新闻 or LingDongNews. Language changes preview immediately in place, preserving form inputs, focus and disclosure state; Save persists, Cancel restores the saved language. Keep the bundle identifier, source IDs and storage/credential accounts independent of display names.
 
 - Desktop development: `pnpm install --frozen-lockfile && pnpm tauri dev`. Validation: `pnpm test`, `pnpm test:ui`, `cargo test --manifest-path src-tauri/Cargo.toml`. Build: `pnpm tauri build`.
 - RSS/Atom, standard JSON sites and local adapters must ALL emit the same versioned JSON envelope before consumption. Source-specific request/signing/parsing logic belongs in manifest.json + adapter.js packages under source-adapters/packages; all three preinstalled sources use the same QuickJS ABI as user-installed v2 packages. General RSS/JSON/mapping helpers live in Rust, never put provider-specific branches in Rust or the frontend. Legacy v1 mappings remain compatible. Repack preinstalled.json after editing example files; consistency tests enforce this.

@@ -2,6 +2,7 @@ name: Stable release
 on:
   push:
     branches: [main]
+    paths: [VERSION]
   workflow_dispatch:
 permissions:
   contents: read

@@ -34,15 +34,15 @@ Both are off by default. Matches are highlighted; other stories remain visible.
 
 **Keywords:** enable “Keyword highlights” and enter comma- or newline-separated terms.
 
-![Keyword settings](../assets/v0.1.0/keyword-settings-dark.png)
+![Keyword settings](../assets/v0.1.1/en/keyword-settings-dark.png)
 
 **AI:** enter the complete API URL, model, key and interests. Supports Chat, Messages, Responses and JEV; one saved configuration.
 
-![AI settings](../assets/v0.1.0/ai-settings-dark.png)
+![AI settings](../assets/v0.1.1/en/ai-settings-dark.png)
 
 Set news age, request rate and character limits in “Analysis & usage limits”. By default, only stories published or corrected after activation and within the last 30 minutes are analyzed. [Protocols and defaults](integrations.md#batching-and-limits)
 
-![AI limits](../assets/v0.1.0/ai-limits-dark.png)
+![AI limits](../assets/v0.1.1/en/ai-limits-dark.png)
 
 “Enable AI” uses saved settings or opens configuration when needed. “Disable AI” or ⌘⇧K / Ctrl+Shift+K stops calls while preserving highlights and decisions.
 

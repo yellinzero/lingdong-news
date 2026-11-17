@@ -56,7 +56,7 @@ pnpm tauri build
 ## 更新资源
 
 - 图标：修改 `src-tauri/icons/icon.svg`，运行 `pnpm icons`。
-- 截图：运行 `pnpm docs:screenshots`，统一深色主题与橙色强调色。
+- 截图：中文运行 `pnpm docs:screenshots`，英文运行 `pnpm docs:screenshots --english`；统一深色主题与橙色强调色。
 - [开发新闻源](news-source-development.md) · [发布版本](releasing.md)
 
 修改预装来源后重新打包：

@@ -3,7 +3,8 @@ test.beforeEach(async({page})=>{await page.goto('/');await page.waitForFunction(
 for(const kind of ['json','decision'])test(`closing AI preserves ${kind} highlights and persisted results without credentials`,async({page})=>{
  await page.evaluate(async kind=>{const h=(window as any).__newsFloatTest,s=h.state();s.items=[];s.unread=[];s.analysisPending=[];s.analysisHistory=[];Object.assign(s.preferences,{aiEnabled:true,aiPaused:false,interests:'科技',keywordEnabled:false});s.preferences.aiLimits.newOnly=false;h.setAIStatus(true);
   (window as any).paidCalls=0;h.bridge.judgeBatch=async()=>{(window as any).paidCalls++;return [];};h.bridge.keyStatus=async()=>{throw Error('Closing AI read credentials');};h.bridge.save=async(state:any)=>{(window as any).savedHistory=JSON.parse(JSON.stringify(state));};
-  h.add([1,2].map(n=>({id:`cls:cache-${n}`,source:'cls',title:'',body:`科技公司研发项目 ${n} 进入新阶段。`,publishedAt:Date.now(),url:'',tags:[]})));
+  // The highlighted story is always newest, even if fixture creation crosses a millisecond.
+  const now=Date.now();h.add([1,2].map(n=>({id:`cls:cache-${n}`,source:'cls',title:'',body:`科技公司研发项目 ${n} 进入新阶段。`,publishedAt:now-n*1000,url:'',tags:[]})));
   const jobs=await h.aiClient.plan(true);await h.aiClient.apply(jobs.map((job:any)=>({key:job.key,judgement:{kind,relevant:job.item.body.includes(' 1 '),probability:job.item.body.includes(' 1 ')?0.95:0.1,reason:'关注研发进展',model:'mock',fingerprint:job.key}})),true);
   await h.setMode('feed');
  },kind);

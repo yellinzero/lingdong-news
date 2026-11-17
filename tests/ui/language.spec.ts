@@ -77,3 +77,18 @@ test('live language preview preserves draft keys, text, focus and disclosure sta
  await page.getByRole('button',{name:'Cancel',exact:true}).click();await expect(page.locator('html')).toHaveAttribute('lang','zh-CN');
  await page.evaluate(()=>(window as any).__newsFloatTest.setMode('settings'));await expect(page.getByLabel('API Key',{exact:true})).toHaveValue('');
 });
+
+test('wide system fonts keep English reader actions inside the minimum window width',async({browser,baseURL})=>{
+ const context=await browser.newContext({locale:'en-US',baseURL,viewport:{width:320,height:320}});
+ try{
+  const page=await context.newPage();await page.goto('/');await page.waitForFunction(()=>!!(window as any).__newsFloatTest);
+  await page.addStyleTag({content:'.panel-header { font-family: monospace; }'});
+  await page.evaluate(()=>(window as any).__newsFloatTest.setMode('glance'));
+  const header=page.locator('.panel-header');expect(await header.evaluate(e=>e.scrollWidth<=e.clientWidth)).toBe(true);
+  for(const name of ['Enable AI','Collapse']){
+   const control=page.getByRole('button',{name,exact:true});await expect(control).toBeVisible();
+   const bounds=await control.boundingBox();expect(bounds!.x+bounds!.width).toBeLessThanOrEqual(320);
+   expect(await control.evaluate(e=>e.scrollWidth<=e.clientWidth)).toBe(true);
+  }
+ }finally{await context.close();}
+});

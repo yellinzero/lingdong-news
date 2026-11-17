@@ -7,6 +7,7 @@
 <p align="center">
   <a href="README.md">简体中文</a> · English<br>
   <a href="https://github.com/yellinzero/lingdong-news/releases">Download</a> ·
+  <a href="https://www.youtube.com/watch?v=kb6YXzWzQ-0">Demo video</a> ·
   <a href="docs/en/usage.md">User guide</a> ·
   <a href="docs/en/news-source-development.md">Build a news source</a> ·
   <a href="docs/en/development.md">Development</a>
@@ -15,6 +16,12 @@
 A desktop news ticker with automatic updates, single-line scrolling and keyword or AI highlights.
 
 <p align="center"><img src="docs/assets/v0.1.0/compact-dark.png" width="460" alt="Compact ticker showing one story, with a matching topic highlighted"></p>
+
+## Demo
+
+[![Watch the LingDongNews English demo](docs/assets/demo/cover.en.png)](https://www.youtube.com/watch?v=kb6YXzWzQ-0)
+
+[Watch the English demo](https://www.youtube.com/watch?v=kb6YXzWzQ-0) · [中文演示](https://www.youtube.com/watch?v=5_2iOTCwTzM)
 
 ## Get started
 

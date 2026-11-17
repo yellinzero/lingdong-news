@@ -7,6 +7,7 @@
 <p align="center">
   简体中文 · <a href="README.en.md">English</a><br>
   <a href="https://github.com/yellinzero/lingdong-news/releases">下载</a> ·
+  <a href="https://www.youtube.com/watch?v=5_2iOTCwTzM">演示视频</a> ·
   <a href="docs/usage.md">使用说明</a> ·
   <a href="docs/news-source-development.md">开发新闻源</a> ·
   <a href="docs/development.md">本地开发</a>
@@ -15,6 +16,12 @@
 桌面快讯悬浮窗，支持自动更新、单行滚动和关键词／AI 高亮。
 
 <p align="center"><img src="docs/assets/v0.1.0/compact-dark.png" width="460" alt="收起状态只展示当前新闻，命中关注词时高亮"></p>
+
+## 演示视频
+
+[![灵动新闻中文演示](docs/assets/demo/cover.zh.png)](https://www.youtube.com/watch?v=5_2iOTCwTzM)
+
+[观看中文演示](https://www.youtube.com/watch?v=5_2iOTCwTzM) · [English demo](https://www.youtube.com/watch?v=kb6YXzWzQ-0)
 
 ## 开始使用
 

@@ -17,8 +17,9 @@ Enable GitHub Actions; publishing uses the repository's `GITHUB_TOKEN`.
 
 | Trigger | Action |
 | --- | --- |
-| Push to dev, or PR targeting dev / main | Version, docs, tests and three-platform builds |
-| Merge into main | Create `vX.Y.Z` and a stable Release after checks pass |
+| Only README, docs or source-adapter guides change | Check versions and documentation links; no desktop packages |
+| App code, dependencies or build configuration change, or manually run Desktop CI | Full tests and three-platform builds |
+| Update VERSION and merge into main, or manually run Stable release | Create `vX.Y.Z` and a stable Release after checks pass |
 
 Assets: universal macOS `.dmg`, Windows x64 `.exe`, Linux x64 `.deb` / `.AppImage`, and `SHA256SUMS`.
 

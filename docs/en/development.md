@@ -52,7 +52,7 @@ Build on the target OS; output is in `src-tauri/target/release/bundle/`. On Mac,
 ## Update resources
 
 - Icons: edit `src-tauri/icons/icon.svg`, run `pnpm icons`.
-- Screenshots: run `pnpm docs:screenshots`; use dark theme and orange accents.
+- Screenshots: run `pnpm docs:screenshots --english` for English or `pnpm docs:screenshots` for Chinese; use dark theme and orange accents.
 - [Build a source](news-source-development.md) · [Release a version](releasing.md)
 
 Repack preinstalled sources after editing:

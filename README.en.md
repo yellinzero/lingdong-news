@@ -15,7 +15,7 @@
 
 A desktop news ticker with automatic updates, single-line scrolling and keyword or AI highlights.
 
-<p align="center"><img src="docs/assets/v0.1.0/compact-dark.png" width="460" alt="Compact ticker showing one story, with a matching topic highlighted"></p>
+<p align="center"><img src="docs/assets/v0.1.1/en/compact-dark.png" width="460" alt="Compact ticker showing one story, with a matching topic highlighted"></p>
 
 ## Demo
 
@@ -33,17 +33,17 @@ A desktop news ticker with automatic updates, single-line scrolling and keyword 
 
 News scrolls on one line; click a story to read its full text. The window stays on top by default, with adjustable size, position and scrolling speed.
 
-<p align="center"><img src="docs/assets/v0.1.0/reader-expanded-dark.png" width="480" alt="Full story opened from the compact ticker"></p>
+<p align="center"><img src="docs/assets/v0.1.1/en/reader-expanded-dark.png" width="480" alt="Full story opened from the compact ticker"></p>
 
 ## Highlight topics with keywords
 
-Enter terms in Settings → Keywords, such as `推理芯片，利率` (inference chips, interest rates). Matches are highlighted; other stories stay visible.
+Enter terms in Settings → Keywords, such as `inference chip, interest rate`. Matches are highlighted; other stories stay visible.
 
 <table>
   <tr><th>Choose your terms</th><th>See matches in the feed</th></tr>
   <tr>
-    <td width="50%" valign="top"><a href="docs/assets/v0.1.0/keyword-settings-dark.png"><img src="docs/assets/v0.1.0/keyword-settings-dark.png" alt="Keyword settings with highlighting enabled and two terms entered"></a></td>
-    <td width="50%" valign="top"><a href="docs/assets/v0.1.0/keyword-result-dark.png"><img src="docs/assets/v0.1.0/keyword-result-dark.png" alt="Matching stories highlighted alongside their keyword labels"></a></td>
+    <td width="50%" valign="top"><a href="docs/assets/v0.1.1/en/keyword-settings-dark.png"><img src="docs/assets/v0.1.1/en/keyword-settings-dark.png" alt="Keyword settings with highlighting enabled and two terms entered"></a></td>
+    <td width="50%" valign="top"><a href="docs/assets/v0.1.1/en/keyword-result-dark.png"><img src="docs/assets/v0.1.1/en/keyword-result-dark.png" alt="Matching stories highlighted alongside their keyword labels"></a></td>
   </tr>
 </table>
 
@@ -56,8 +56,8 @@ Set rate and character limits, or turn AI off with one click. Highlights and sav
 <table>
   <tr><th>Configure AI and your interests</th><th>Highlight relevant stories by meaning</th></tr>
   <tr>
-    <td width="50%" valign="top"><a href="docs/assets/v0.1.0/ai-settings-dark.png"><img src="docs/assets/v0.1.0/ai-settings-dark.png" alt="AI protocol, endpoint, model, credential and interest settings"></a></td>
-    <td width="50%" valign="top"><a href="docs/assets/v0.1.0/ai-result-dark.png"><img src="docs/assets/v0.1.0/ai-result-dark.png" alt="JEV highlights inference hardware and open-source deployment news while keeping other stories visible"></a></td>
+    <td width="50%" valign="top"><a href="docs/assets/v0.1.1/en/ai-settings-dark.png"><img src="docs/assets/v0.1.1/en/ai-settings-dark.png" alt="AI protocol, endpoint, model, credential and interest settings"></a></td>
+    <td width="50%" valign="top"><a href="docs/assets/v0.1.1/en/ai-result-dark.png"><img src="docs/assets/v0.1.1/en/ai-result-dark.png" alt="JEV highlights inference hardware and open-source deployment news while keeping other stories visible"></a></td>
   </tr>
 </table>
 
@@ -67,7 +67,7 @@ Set rate and character limits, or turn AI off with one click. Highlights and sav
 
 CLS, WallstreetCN and Jin10 are preinstalled. Add multiple RSS / Atom / JSON Feed subscriptions, JSON endpoints or custom adapters. Sources can be enabled, uninstalled and reinstalled.
 
-<p align="center"><img src="docs/assets/v0.1.0/sources-settings-dark.png" width="480" alt="Preinstalled sources and a custom subscription managed in one list"></p>
+<p align="center"><img src="docs/assets/v0.1.1/en/sources-settings-dark.png" width="480" alt="Preinstalled sources and a custom subscription managed in one list"></p>
 
 [Source development guide](docs/en/news-source-development.md) · [Runnable examples](source-adapters/README.en.md)
 
